@@ -161,6 +161,7 @@ const els = {
   qrFallback: document.querySelector("#qrFallback"),
   copyPix: document.querySelector("#copyPix"),
   simulatePayment: document.querySelector("#simulatePayment"),
+  ticketUrl: document.querySelector("#ticketUrl"),
   confirmationPanel: document.querySelector("#confirmacao"),
   successMessage: document.querySelector("#successMessage"),
   newBetButton: document.querySelector("#newBetButton"),
@@ -490,6 +491,8 @@ function renderPaymentStep() {
     els.pixCode.value = "";
     els.copyPix.disabled = true;
     els.simulatePayment.disabled = true;
+    els.ticketUrl.classList.add("is-hidden");
+    els.ticketUrl.removeAttribute("href");
     drawEmptyQr();
     return;
   }
@@ -501,6 +504,8 @@ function renderPaymentStep() {
   els.simulatePayment.classList.toggle("is-hidden", Boolean(appConfig.mercadoPagoEnabled));
   els.simulatePayment.disabled = bet.paid || Boolean(appConfig.mercadoPagoEnabled);
   els.simulatePayment.textContent = API_BASE ? "Simular pagamento" : "Confirmar pagamento";
+  els.ticketUrl.classList.toggle("is-hidden", !bet.ticketUrl);
+  if (bet.ticketUrl) els.ticketUrl.href = bet.ticketUrl;
   if (API_BASE && !bet.paid) startPaymentPolling(bet);
   if (bet.qrCodeBase64) {
     els.qrFallback.style.display = "none";
@@ -731,6 +736,7 @@ function normalizeApiBet(bet) {
     orderId: bet.providerPaymentId || bet.id,
     pix: bet.qrCode || "",
     qrCodeBase64: bet.qrCodeBase64 || "",
+    ticketUrl: bet.ticketUrl || "",
     paid: bet.status === "paga",
     paidAt: bet.paidAt,
     createdAt: bet.createdAt,
@@ -892,9 +898,8 @@ function renderQr(text) {
     els.qrImage.removeAttribute("src");
     els.qrImage.style.display = "none";
     els.qrFallback.style.display = "block";
-    drawFallbackQr(text);
+    drawQrHelp();
   };
-  drawFallbackQr(text);
 }
 
 function drawEmptyQr() {
@@ -932,6 +937,20 @@ function drawFallbackQr(text) {
       }
     }
   }
+}
+
+function drawQrHelp() {
+  const ctx = els.qrFallback.getContext("2d");
+  els.qrImage.removeAttribute("src");
+  els.qrImage.style.display = "none";
+  els.qrFallback.style.display = "block";
+  ctx.fillStyle = "#f7faf8";
+  ctx.fillRect(0, 0, 220, 220);
+  ctx.fillStyle = "#075f37";
+  ctx.font = "700 13px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("Use o PIX copia e cola", 110, 100);
+  ctx.fillText("ou abrir pagamento", 110, 122);
 }
 
 function drawFinder(ctx, cell, x, y) {
