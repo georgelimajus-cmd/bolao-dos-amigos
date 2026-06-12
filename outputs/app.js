@@ -5,7 +5,7 @@ const PIX_KEY = "11999999999";
 const MERCHANT_NAME = "BOLAO DOS AMIGOS";
 const MERCHANT_CITY = "SAO PAULO";
 const API_BASE = location.protocol.startsWith("http") ? "" : null;
-const SESSION_TIMEOUT_MS = 3 * 60 * 1000;
+const SESSION_TIMEOUT_MS = 1 * 60 * 1000;
 const STORAGE_KEY = "bolao-dos-amigos-state-teste-1";
 const LEGACY_STORAGE_KEYS = ["bolao-dos-amigos-state"];
 let appConfig = { betValue: ENTRY_VALUE, mercadoPagoEnabled: false };
@@ -144,6 +144,8 @@ const els = {
   phone: document.querySelector("#phone"),
   cpf: document.querySelector("#cpf"),
   userStatus: document.querySelector("#userStatus"),
+  signupSummary: document.querySelector("#signupSummary"),
+  newParticipantButton: document.querySelector("#newParticipantButton"),
   netPrize: document.querySelector("#netPrize"),
   screenButtons: document.querySelectorAll("[data-screen-target]"),
   betPanel: document.querySelector("#apostas"),
@@ -272,7 +274,7 @@ function bindEvents() {
       return;
     }
     state.currentMatchId = state.currentMatchId || firstAvailableMatchId();
-    state.sessionExpiresAt = Date.now() + SESSION_TIMEOUT_MS;
+    state.sessionExpiresAt = null;
     saveState();
     await ensurePaymentForCurrentMatch();
     hydrateUser();
@@ -348,7 +350,7 @@ function bindEvents() {
     }
     state.lastConfirmedMatchId = bet.matchId;
     state.pendingMatchId = null;
-    state.sessionExpiresAt = Date.now() + SESSION_TIMEOUT_MS;
+    state.sessionExpiresAt = null;
     saveState();
     renderAll();
     showScreen("apostas");
@@ -371,6 +373,11 @@ function bindEvents() {
   });
 
   els.adminRefresh.addEventListener("click", renderAdminData);
+  els.adminUsers.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-delete-user]");
+    if (!button) return;
+    await deleteAdminUser(button.dataset.deleteUser);
+  });
 
   els.adminLogout.addEventListener("click", () => {
     state.adminUnlocked = false;
@@ -386,6 +393,8 @@ function bindEvents() {
     event.preventDefault();
     await renderParticipantResults();
   });
+
+  els.newParticipantButton.addEventListener("click", startNewParticipant);
 }
 
 function renderAll() {
@@ -415,6 +424,43 @@ function renderCadastroStep() {
   els.userStatus.textContent = hasUser
     ? `Cadastro salvo para ${state.user.name}. Você pode usar este cadastro para apostar em outros jogos.`
     : "Faça seu cadastro uma única vez para apostar nos jogos do Brasil.";
+  renderSignupSummary();
+}
+
+function renderSignupSummary() {
+  if (!state.user) {
+    els.signupSummary.classList.add("is-hidden");
+    els.signupSummary.innerHTML = "";
+    els.newParticipantButton.classList.add("is-hidden");
+    return;
+  }
+
+  const bets = Object.values(state.bets);
+  const rows = bets.length
+    ? bets.map((bet) => {
+        const match = brazilMatches.find((item) => item.id === bet.matchId);
+        const hasGuess = bet.home !== null && bet.home !== undefined && bet.away !== null && bet.away !== undefined;
+        return `
+          <div class="admin-row">
+            <strong>${match ? `${escapeHtml(match.home)} x ${escapeHtml(match.away)}` : "Jogo do Brasil"}</strong>
+            <span>Status: ${bet.paid ? "Pagamento confirmado" : "Aguardando pagamento"}</span>
+            <span>Palpite: ${hasGuess ? `${bet.home} x ${bet.away}` : "ainda não informado"}</span>
+            <span>Data: ${formatDateTime(bet.guessAt || bet.paidAt || bet.createdAt)}</span>
+          </div>
+        `;
+      }).join("")
+    : `<p class="empty">Nenhuma aposta registrada para este cadastro.</p>`;
+
+  els.signupSummary.classList.remove("is-hidden");
+  els.signupSummary.innerHTML = `
+    <div class="admin-row">
+      <strong>Resumo da aposta</strong>
+      <span>Participante: ${escapeHtml(state.user.name)}</span>
+      <span>CPF: ${escapeHtml(state.user.cpf)}</span>
+    </div>
+    ${rows}
+  `;
+  els.newParticipantButton.classList.remove("is-hidden");
 }
 
 function renderStats() {
@@ -586,6 +632,7 @@ function renderAdminUsers() {
       <div><dt>Celular</dt><dd>${escapeHtml(state.user.phone)}</dd></div>
       <div><dt>CPF</dt><dd>${escapeHtml(state.user.cpf)}</dd></div>
     </dl>
+    <button type="button" class="danger" data-delete-user="local">Excluir cadastro</button>
   `;
 }
 
@@ -668,6 +715,7 @@ async function renderAdminDataFromApi() {
             <div><dt>Celular</dt><dd>${escapeHtml(user.phone)}</dd></div>
             <div><dt>CPF</dt><dd>${escapeHtml(user.cpf)}</dd></div>
           </dl>
+          <button type="button" class="danger" data-delete-user="${escapeHtml(user.id)}">Excluir cadastro</button>
         `).join("")
       : `<p class="empty">Nenhum cadastro realizado ainda.</p>`;
 
@@ -727,6 +775,30 @@ async function renderAdminDataFromApi() {
   }
 }
 
+async function deleteAdminUser(userId) {
+  const confirmed = window.confirm("Excluir este cadastro e todas as apostas vinculadas?");
+  if (!confirmed) return;
+
+  try {
+    if (API_BASE && userId !== "local") {
+      await apiDelete(`/api/admin/usuarios/${encodeURIComponent(userId)}?pin=${encodeURIComponent(ADMIN_PIN)}`);
+    } else {
+      state.user = null;
+      state.bets = {};
+      state.pendingMatchId = null;
+      state.lastConfirmedMatchId = null;
+      state.sessionExpiresAt = null;
+      saveState();
+    }
+    if (state.user?.id === userId || userId === "local") logoutParticipant();
+    await renderAdminData();
+    renderAll();
+    els.adminStatus.textContent = "Cadastro excluído com sucesso.";
+  } catch (error) {
+    els.adminStatus.textContent = error.message;
+  }
+}
+
 function normalizeApiBet(bet) {
   return {
     id: bet.id,
@@ -757,6 +829,13 @@ async function apiPost(path, payload) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "Erro na API.");
+  return data;
+}
+
+async function apiDelete(path) {
+  const response = await fetch(path, { method: "DELETE" });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Erro na API.");
   return data;
@@ -1043,6 +1122,25 @@ function logoutParticipant() {
   els.signupButton.disabled = false;
   renderAll();
   showScreen("inicio");
+}
+
+function startNewParticipant() {
+  state.user = null;
+  state.bets = {};
+  state.pendingMatchId = null;
+  state.lastConfirmedMatchId = null;
+  state.sessionExpiresAt = null;
+  saveState();
+  els.signupForm.reset();
+  els.name.disabled = false;
+  els.phone.disabled = false;
+  els.cpf.disabled = false;
+  els.signupButton.disabled = false;
+  els.signupSummary.classList.add("is-hidden");
+  els.signupSummary.innerHTML = "";
+  els.newParticipantButton.classList.add("is-hidden");
+  renderAll();
+  showScreen("cadastro");
 }
 
 async function renderParticipantResults() {

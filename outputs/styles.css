@@ -488,7 +488,9 @@ select:focus {
 
 .primary,
 .success,
+.danger,
 .button-row button,
+.button-row .payment-link,
 .match-card button {
   min-height: 2.85rem;
   padding: 0.72rem 1rem;
@@ -507,6 +509,13 @@ select:focus {
   box-shadow: 0 10px 22px rgba(23, 78, 166, 0.2);
 }
 
+.danger {
+  margin-top: 0.65rem;
+  background: #fff0f0;
+  color: #9b1c1c;
+  border: 1px solid #f1b7b7;
+}
+
 .button-row {
   display: flex;
   flex-wrap: wrap;
@@ -514,9 +523,14 @@ select:focus {
 }
 
 .button-row button,
+.button-row .payment-link,
 .match-card button {
   background: #edf6ef;
   color: #223027;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
 }
 
 button:hover {

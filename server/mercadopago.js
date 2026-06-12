@@ -60,7 +60,8 @@ async function createPixPayment({ amount, description, payer, externalReference 
       payment_method_id: "pix",
       payer: {
         email: payer.email || "participante@bolao.local",
-        first_name: payer.name || "Participante"
+        first_name: payer.name || "Participante",
+        identification: payer.cpf ? { type: "CPF", number: payer.cpf } : undefined
       },
       external_reference: externalReference,
       notification_url: `${baseUrl}/api/webhook/mercadopago`
@@ -73,6 +74,10 @@ async function createPixPayment({ amount, description, payer, externalReference 
   }
 
   const transaction = data.point_of_interaction?.transaction_data || {};
+  if (!transaction.qr_code) {
+    throw new Error("Mercado Pago nao retornou um codigo PIX valido para este pagamento.");
+  }
+
   return {
     provider: "mercadopago",
     providerPaymentId: String(data.id),

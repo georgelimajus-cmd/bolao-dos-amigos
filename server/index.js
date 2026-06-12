@@ -141,6 +141,18 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "DELETE" && url.pathname.startsWith("/api/admin/usuarios/")) {
+    const pin = url.searchParams.get("pin");
+    if (pin !== env("ADMIN_PIN", "2026")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const userId = decodeURIComponent(url.pathname.split("/").pop());
+    const result = deleteUser(userId);
+    if (!result.deleted) return sendJson(res, 404, { error: "Cadastro nao encontrado." });
+    sendJson(res, 200, result);
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/admin/sincronizar-resultados") {
     const body = await readBody(req);
     if (String(body.pin || "") !== env("ADMIN_PIN", "2026")) {
@@ -250,7 +262,12 @@ async function createBet(body) {
   const payment = await createPixPayment({
     amount: betValue,
     description,
-    payer: { name: user.name, email: `${onlyDigits(user.cpf) || "participante"}@bolao.local` },
+    payer: {
+      name: user.name,
+      email: env("MERCADO_PAGO_PAYER_EMAIL", `${onlyDigits(user.cpf) || "participante"}@bolaodosamigos.com.br`),
+      cpf: onlyDigits(user.cpf),
+      phone: onlyDigits(user.phone)
+    },
     externalReference: betId
   });
 
@@ -342,6 +359,21 @@ function buildPublicSummary() {
   return {
     netTotal: paidBets * betValue * (1 - appFeePercent / 100)
   };
+}
+
+function deleteUser(userId) {
+  return updateDb((db) => {
+    const beforeUsers = db.users.length;
+    const userBets = db.bets.filter((bet) => bet.userId === userId);
+    const betIds = new Set(userBets.map((bet) => bet.id));
+    db.users = db.users.filter((user) => user.id !== userId);
+    db.bets = db.bets.filter((bet) => bet.userId !== userId);
+    db.payments = (db.payments || []).filter((payment) => !betIds.has(payment.externalReference));
+    return {
+      deleted: db.users.length < beforeUsers,
+      removedBets: userBets.length
+    };
+  });
 }
 
 function findResults(body) {
