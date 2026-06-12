@@ -101,19 +101,10 @@ async function getPayment(paymentId) {
 }
 
 function createFakePixPayment({ amount, description, externalReference }) {
-  const qrCode = [
-    "000201",
-    "010212",
-    `26580014br.gov.bcb.pix0136${externalReference}`,
-    "52040000",
-    "5303986",
-    `5405${Number(amount).toFixed(2)}`,
-    "5802BR",
-    "5916BOLAO DOS AMIGOS",
-    "6009SAO PAULO",
-    `62180514${externalReference}`,
-    "6304FAKE"
-  ].join("");
+  const pixKey = env("PIX_KEY");
+  const qrCode = pixKey
+    ? buildStaticPixPayload({ pixKey, amount, txid: externalReference, description })
+    : "";
 
   return {
     provider: "simulado",
@@ -124,6 +115,53 @@ function createFakePixPayment({ amount, description, externalReference }) {
     ticketUrl: "",
     description
   };
+}
+
+function buildStaticPixPayload({ pixKey, amount, txid, description }) {
+  const merchantName = normalizePixText(env("PIX_MERCHANT_NAME", "BOLAO DOS AMIGOS")).slice(0, 25);
+  const merchantCity = normalizePixText(env("PIX_MERCHANT_CITY", "GRAJAU")).slice(0, 15);
+  const cleanTxid = normalizePixText(txid).replace(/[^A-Z0-9]/g, "").slice(0, 25) || "***";
+  const merchantAccount =
+    emv("00", "br.gov.bcb.pix") +
+    emv("01", pixKey) +
+    emv("02", normalizePixText(description).slice(0, 72));
+  const payload =
+    emv("00", "01") +
+    emv("01", "12") +
+    emv("26", merchantAccount) +
+    emv("52", "0000") +
+    emv("53", "986") +
+    emv("54", Number(amount).toFixed(2)) +
+    emv("58", "BR") +
+    emv("59", merchantName) +
+    emv("60", merchantCity) +
+    emv("62", emv("05", cleanTxid)) +
+    "6304";
+  return payload + crc16(payload);
+}
+
+function emv(id, value) {
+  const clean = String(value || "");
+  return id + String(clean.length).padStart(2, "0") + clean;
+}
+
+function crc16(payload) {
+  let crc = 0xffff;
+  for (let index = 0; index < payload.length; index += 1) {
+    crc ^= payload.charCodeAt(index) << 8;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 0x8000 ? (crc << 1) ^ 0x1021 : crc << 1;
+      crc &= 0xffff;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, "0");
+}
+
+function normalizePixText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
 }
 
 module.exports = { createPixPayment, getPayment, mercadoPagoEnabled, validateWebhookSignature };

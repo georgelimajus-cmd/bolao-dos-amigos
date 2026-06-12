@@ -5,6 +5,7 @@ const PIX_KEY = "11999999999";
 const MERCHANT_NAME = "BOLAO DOS AMIGOS";
 const MERCHANT_CITY = "SAO PAULO";
 const API_BASE = location.protocol.startsWith("http") ? "" : null;
+const HAS_API = API_BASE !== null;
 const SESSION_TIMEOUT_MS = 1 * 60 * 1000;
 const STORAGE_KEY = "bolao-dos-amigos-state-teste-1";
 const LEGACY_STORAGE_KEYS = ["bolao-dos-amigos-state"];
@@ -197,7 +198,7 @@ async function init() {
 }
 
 async function loadServerConfig() {
-  if (!API_BASE) return;
+  if (!HAS_API) return;
   try {
     appConfig = await apiGet("/api/config");
   } catch {
@@ -268,7 +269,7 @@ function bindEvents() {
     }
 
     try {
-      state.user = API_BASE ? (await apiPost("/api/usuarios", user)).user : user;
+      state.user = HAS_API ? (await apiPost("/api/usuarios", user)).user : user;
     } catch (error) {
       els.userStatus.textContent = error.message;
       return;
@@ -296,7 +297,7 @@ function bindEvents() {
     const home = Number(document.querySelector("#betHomeScore").value);
     const away = Number(document.querySelector("#betAwayScore").value);
     try {
-      if (API_BASE) {
+      if (HAS_API) {
         const result = await apiPost(`/api/apostas/${existingBet.id}/palpite`, {
           homeScore: home,
           awayScore: away
@@ -336,7 +337,7 @@ function bindEvents() {
   els.simulatePayment.addEventListener("click", async () => {
     const bet = pendingBet();
     if (!bet) return;
-    if (API_BASE) {
+    if (HAS_API) {
       try {
         const result = await apiPost(`/api/apostas/${bet.id}/simular-pagamento`, {});
         Object.assign(bet, normalizeApiBet(result.bet));
@@ -464,7 +465,7 @@ function renderSignupSummary() {
 }
 
 function renderStats() {
-  if (API_BASE) {
+  if (HAS_API) {
     apiGet("/api/resumo")
       .then((data) => {
         els.netPrize.textContent = money(data.netTotal || 0);
@@ -546,18 +547,22 @@ function renderPaymentStep() {
   els.paymentStatus.textContent = bet.paid ? "Pagamento confirmado" : "Aguardando pagamento";
   els.orderId.textContent = bet.orderId;
   els.pixCode.value = bet.pix;
-  els.copyPix.disabled = false;
+  els.copyPix.disabled = !bet.pix;
   els.simulatePayment.classList.toggle("is-hidden", Boolean(appConfig.mercadoPagoEnabled));
   els.simulatePayment.disabled = bet.paid || Boolean(appConfig.mercadoPagoEnabled);
-  els.simulatePayment.textContent = API_BASE ? "Simular pagamento" : "Confirmar pagamento";
+  els.simulatePayment.textContent = HAS_API ? "Simular pagamento" : "Confirmar pagamento";
   els.ticketUrl.classList.toggle("is-hidden", !bet.ticketUrl);
   if (bet.ticketUrl) els.ticketUrl.href = bet.ticketUrl;
-  if (API_BASE && !bet.paid) startPaymentPolling(bet);
-  if (bet.qrCodeBase64) {
+  if (HAS_API && !bet.paid) startPaymentPolling(bet);
+  if (!bet.pix) {
+    els.pixCode.placeholder = "PIX simulado. Para gerar um QR Code pagável, ative o Mercado Pago no Render ou configure PIX_KEY no ambiente local.";
+    drawQrHelp("PIX simulado", "Use o Render com Mercado Pago ativo");
+  } else if (bet.qrCodeBase64) {
     els.qrFallback.style.display = "none";
     els.qrImage.style.display = "block";
     els.qrImage.src = `data:image/png;base64,${bet.qrCodeBase64}`;
   } else {
+    els.pixCode.placeholder = "O código PIX aparecerá aqui.";
     renderQr(bet.pix);
   }
 }
@@ -611,14 +616,14 @@ function renderAdmin() {
 }
 
 function renderAdminData() {
-  if (API_BASE) {
+  if (HAS_API) {
     renderAdminDataFromApi();
     return;
   }
   renderAdminUsers();
   renderAdminGames();
   renderAdminBets();
-  els.adminResults.innerHTML = `<p class="empty">Resultados e ganhadores são calculados no backend quando o sistema roda em http://localhost:3000.</p>`;
+  els.adminResults.innerHTML = `<p class="empty">Resultados, ganhadores e rateio aparecerão aqui quando houver apostas e placares finalizados.</p>`;
 }
 
 function renderAdminUsers() {
@@ -682,7 +687,7 @@ async function ensurePaymentForCurrentMatch() {
     return existingBet;
   }
 
-  if (API_BASE) {
+  if (HAS_API) {
     const result = await apiPost("/api/apostas", {
       userId: state.user.id,
       matchId: match.id
@@ -780,7 +785,7 @@ async function deleteAdminUser(userId) {
   if (!confirmed) return;
 
   try {
-    if (API_BASE && userId !== "local") {
+    if (HAS_API && userId !== "local") {
       await apiDelete(`/api/admin/usuarios/${encodeURIComponent(userId)}?pin=${encodeURIComponent(ADMIN_PIN)}`);
     } else {
       state.user = null;
@@ -809,6 +814,7 @@ function normalizeApiBet(bet) {
     pix: bet.qrCode || "",
     qrCodeBase64: bet.qrCodeBase64 || "",
     ticketUrl: bet.ticketUrl || "",
+    provider: bet.provider || "",
     paid: bet.status === "paga",
     paidAt: bet.paidAt,
     createdAt: bet.createdAt,
@@ -877,7 +883,7 @@ function alignActiveScreen(screenId) {
 }
 
 function startPaymentPolling(bet) {
-  if (!API_BASE || paymentPoll || !bet?.id) return;
+  if (!HAS_API || paymentPoll || !bet?.id) return;
   paymentPoll = setInterval(async () => {
     try {
       const result = await apiGet(`/api/apostas/${bet.id}`);
@@ -1018,7 +1024,7 @@ function drawFallbackQr(text) {
   }
 }
 
-function drawQrHelp() {
+function drawQrHelp(lineOne = "Use o PIX copia e cola", lineTwo = "ou abrir pagamento") {
   const ctx = els.qrFallback.getContext("2d");
   els.qrImage.removeAttribute("src");
   els.qrImage.style.display = "none";
@@ -1028,8 +1034,8 @@ function drawQrHelp() {
   ctx.fillStyle = "#075f37";
   ctx.font = "700 13px Arial";
   ctx.textAlign = "center";
-  ctx.fillText("Use o PIX copia e cola", 110, 100);
-  ctx.fillText("ou abrir pagamento", 110, 122);
+  ctx.fillText(lineOne, 110, 100);
+  ctx.fillText(lineTwo, 110, 122);
 }
 
 function drawFinder(ctx, cell, x, y) {
@@ -1084,7 +1090,7 @@ function normalizeState() {
     state.lastConfirmedMatchId = null;
     state.sessionExpiresAt = null;
   }
-  if (API_BASE && state.user && !state.user.id) {
+  if (HAS_API && state.user && !state.user.id) {
     state.user = null;
     state.bets = {};
     state.pendingMatchId = null;
@@ -1150,7 +1156,7 @@ async function renderParticipantResults() {
   els.resultsBox.innerHTML = "Buscando seus palpites...";
 
   try {
-    const data = API_BASE
+    const data = HAS_API
       ? await apiPost("/api/resultados", { name, cpf })
       : getLocalResults(name, cpf);
     els.resultsBox.innerHTML = buildResultsHtml(data);
