@@ -1,0 +1,570 @@
+const http = require("node:http");
+const fs = require("node:fs");
+const path = require("node:path");
+const crypto = require("node:crypto");
+const { loadEnv, env } = require("./env");
+const { readDb, updateDb } = require("./db");
+const { games } = require("./games");
+const { createPixPayment, getPayment, mercadoPagoEnabled, validateWebhookSignature } = require("./mercadopago");
+
+loadEnv();
+
+const publicDir = path.join(__dirname, "..", "outputs");
+const port = Number(env("PORT", "3000"));
+const betValue = Number(env("BET_VALUE", "10"));
+const appFeePercent = Number(env("APP_FEE_PERCENT", "30"));
+const resultsSyncMinutes = Number(env("RESULTS_SYNC_MINUTES", "10"));
+
+const mimeTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon"
+};
+
+const server = http.createServer(async (req, res) => {
+  try {
+    if (req.url.startsWith("/api/")) {
+      await handleApi(req, res);
+      return;
+    }
+    serveStatic(req, res);
+  } catch (error) {
+    sendJson(res, 500, { error: error.message || "Erro interno." });
+  }
+});
+
+server.listen(port, () => {
+  console.log(`Bolao dos Amigos rodando em http://localhost:${port}`);
+  console.log(`Mercado Pago: ${mercadoPagoEnabled() ? "ativo" : "simulado"}`);
+});
+
+if (env("RESULTS_SOURCE_URL")) {
+  setInterval(() => {
+    syncResultsFromSource().catch((error) => console.error(`Erro ao sincronizar resultados: ${error.message}`));
+  }, Math.max(1, resultsSyncMinutes) * 60 * 1000);
+}
+
+async function handleApi(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+
+  if (req.method === "GET" && url.pathname === "/api/health") {
+    sendJson(res, 200, {
+      ok: true,
+      app: "Bolao dos Amigos",
+      mercadoPagoEnabled: mercadoPagoEnabled(),
+      time: new Date().toISOString()
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/config") {
+    sendJson(res, 200, {
+      betValue,
+      appFeePercent,
+      mercadoPagoEnabled: mercadoPagoEnabled()
+    });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/jogos") {
+    sendJson(res, 200, { games });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/resumo") {
+    sendJson(res, 200, buildPublicSummary());
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/usuarios") {
+    const body = await readBody(req);
+    const user = saveUser(body);
+    sendJson(res, 200, { user });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/apostas") {
+    const body = await readBody(req);
+    const result = await createBet(body);
+    sendJson(res, 201, result);
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname.startsWith("/api/apostas/")) {
+    const id = url.pathname.split("/").pop();
+    const db = readDb();
+    const bet = db.bets.find((item) => item.id === id);
+    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    sendJson(res, 200, { bet });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname.endsWith("/palpite")) {
+    const parts = url.pathname.split("/");
+    const id = parts[3];
+    const body = await readBody(req);
+    const bet = saveGuess(id, body);
+    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    sendJson(res, 200, { bet });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname.endsWith("/simular-pagamento")) {
+    const parts = url.pathname.split("/");
+    const id = parts[3];
+    if (mercadoPagoEnabled()) {
+      return sendJson(res, 400, { error: "Simulacao desativada com Mercado Pago real." });
+    }
+    const bet = updateDb((db) => {
+      const item = db.bets.find((candidate) => candidate.id === id);
+      if (!item) return null;
+      item.status = "paga";
+      item.paidAt = new Date().toISOString();
+      return item;
+    });
+    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    sendJson(res, 200, { bet });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/admin") {
+    const pin = url.searchParams.get("pin");
+    if (pin !== env("ADMIN_PIN", "2026")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    sendJson(res, 200, buildAdminData());
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/sincronizar-resultados") {
+    const body = await readBody(req);
+    if (String(body.pin || "") !== env("ADMIN_PIN", "2026")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const result = await syncResultsFromSource();
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/resultado-manual") {
+    const body = await readBody(req);
+    if (String(body.pin || "") !== env("ADMIN_PIN", "2026")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const result = saveManualResult(body);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/resultados") {
+    const body = await readBody(req);
+    const result = findResults(body);
+    if (!result) return sendJson(res, 404, { error: "Participante nao encontrado." });
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/webhook/mercadopago") {
+    const body = await readBody(req);
+    if (!validateWebhookSignature(req.headers, body)) {
+      return sendJson(res, 401, { error: "Assinatura do webhook invalida." });
+    }
+    await handleMercadoPagoWebhook(body);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  sendJson(res, 404, { error: "Rota nao encontrada." });
+}
+
+function saveUser(body) {
+  const name = String(body.name || body.nome || "").trim();
+  const phone = String(body.phone || body.celular || "").trim();
+  const cpf = String(body.cpf || "").trim();
+  if (!name || !phone || !cpf) throw new Error("Nome, celular e CPF sao obrigatorios.");
+  if (normalizeName(name).split(" ").length < 2) throw new Error("Informe o nome completo.");
+  if (!isValidCpf(cpf)) throw new Error("CPF invalido.");
+  if (!isValidPhone(phone)) throw new Error("Celular invalido.");
+
+  return updateDb((db) => {
+    const cpfDigits = onlyDigits(cpf);
+    const phoneDigits = onlyDigits(phone);
+    const userByCpf = db.users.find((item) => onlyDigits(item.cpf) === cpfDigits);
+    const userByPhone = db.users.find((item) => onlyDigits(item.phone) === phoneDigits);
+
+    if (userByCpf && userByPhone && userByCpf.id !== userByPhone.id) {
+      throw new Error("CPF e celular ja pertencem a cadastros diferentes.");
+    }
+    if (userByCpf && onlyDigits(userByCpf.phone) !== phoneDigits) {
+      throw new Error("Este CPF ja esta cadastrado com outro celular.");
+    }
+    if (userByPhone && onlyDigits(userByPhone.cpf) !== cpfDigits) {
+      throw new Error("Este celular ja esta cadastrado com outro CPF.");
+    }
+
+    let user = userByCpf || userByPhone;
+    if (user) {
+      user.name = name;
+      user.phone = phone;
+      user.cpf = cpf;
+      return user;
+    }
+    user = {
+      id: randomId("usr"),
+      name,
+      phone,
+      cpf,
+      createdAt: new Date().toISOString()
+    };
+    db.users.push(user);
+    return user;
+  });
+}
+
+async function createBet(body) {
+  const userId = String(body.userId || body.usuario_id || "");
+  const matchId = String(body.matchId || body.jogo_id || "");
+  const homeScore = body.homeScore ?? body.placar_casa;
+  const awayScore = body.awayScore ?? body.placar_fora;
+  const match = games.find((item) => item.id === matchId);
+  if (!match) throw new Error("Jogo invalido.");
+  if (!isOptionalScore(homeScore) || !isOptionalScore(awayScore)) {
+    throw new Error("Placar invalido.");
+  }
+  if (!canBet(match)) throw new Error("Apostas encerradas para este jogo.");
+
+  const db = readDb();
+  const user = db.users.find((item) => item.id === userId);
+  if (!user) throw new Error("Usuario nao encontrado.");
+  const paidBet = db.bets.find((item) => item.userId === userId && item.matchId === matchId && item.status === "paga");
+  if (paidBet) throw new Error("Este usuario ja possui uma aposta paga para este jogo.");
+
+  const existingPending = db.bets.find((item) => item.userId === userId && item.matchId === matchId && item.status !== "paga");
+  const betId = existingPending?.id || randomId("bet");
+  const description = `Bolao dos Amigos - ${match.home} x ${match.away}`;
+  const payment = await createPixPayment({
+    amount: betValue,
+    description,
+    payer: { name: user.name, email: `${onlyDigits(user.cpf) || "participante"}@bolao.local` },
+    externalReference: betId
+  });
+
+  const bet = updateDb((freshDb) => {
+    const existing = freshDb.bets.find((item) => item.id === betId);
+    const nextBet = {
+      id: betId,
+      userId,
+      matchId,
+      homeScore: homeScore === undefined ? null : Number(homeScore),
+      awayScore: awayScore === undefined ? null : Number(awayScore),
+      value: betValue,
+      status: payment.status === "approved" ? "paga" : "aguardando_pagamento",
+      provider: payment.provider,
+      providerPaymentId: payment.providerPaymentId,
+      qrCode: payment.qrCode,
+      qrCodeBase64: payment.qrCodeBase64,
+      ticketUrl: payment.ticketUrl,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      paidAt: payment.status === "approved" ? new Date().toISOString() : null
+    };
+    if (existing) Object.assign(existing, nextBet);
+    else freshDb.bets.push(nextBet);
+    return existing || nextBet;
+  });
+
+  return { bet, user, match };
+}
+
+function saveGuess(betId, body) {
+  const homeScore = Number(body.homeScore ?? body.placar_casa);
+  const awayScore = Number(body.awayScore ?? body.placar_fora);
+  if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
+    throw new Error("Placar invalido.");
+  }
+
+  return updateDb((db) => {
+    const bet = db.bets.find((item) => item.id === betId);
+    if (!bet) return null;
+    if (bet.status !== "paga") throw new Error("Pagamento ainda nao confirmado.");
+    if (bet.homeScore !== null && bet.homeScore !== undefined && bet.awayScore !== null && bet.awayScore !== undefined) {
+      throw new Error("Este CPF e celular ja possuem uma aposta registrada para este jogo.");
+    }
+    bet.homeScore = homeScore;
+    bet.awayScore = awayScore;
+    bet.guessAt = new Date().toISOString();
+    return bet;
+  });
+}
+
+async function handleMercadoPagoWebhook(body) {
+  const paymentId = body?.data?.id || body?.id;
+  if (!paymentId || !mercadoPagoEnabled()) return;
+
+  const payment = await getPayment(paymentId);
+  if (payment.status !== "approved") return;
+  const betId = payment.external_reference;
+  if (!betId) return;
+
+  updateDb((db) => {
+    const bet = db.bets.find((item) => item.id === betId);
+    if (!bet) return;
+    bet.status = "paga";
+    bet.paidAt = new Date().toISOString();
+    bet.providerPaymentId = String(payment.id);
+  });
+}
+
+function buildAdminData() {
+  const db = readDb();
+  const settlements = games.map((game) => buildSettlement(db, game));
+  return {
+    users: db.users,
+    bets: db.bets,
+    games,
+    results: db.results || {},
+    settlements,
+    totals: {
+      paidBets: db.bets.filter((bet) => bet.status === "paga").length,
+      gross: db.bets.filter((bet) => bet.status === "paga").length * betValue,
+      net: db.bets.filter((bet) => bet.status === "paga").length * betValue * (1 - appFeePercent / 100)
+    }
+  };
+}
+
+function buildPublicSummary() {
+  const db = readDb();
+  const paidBets = db.bets.filter((bet) => bet.status === "paga").length;
+  return {
+    netTotal: paidBets * betValue * (1 - appFeePercent / 100)
+  };
+}
+
+function findResults(body) {
+  const name = normalizeName(body.name || body.nome);
+  const cpf = onlyDigits(body.cpf);
+  if (!name || !cpf) throw new Error("Nome e CPF sao obrigatorios.");
+
+  const db = readDb();
+  const user = db.users.find((item) => normalizeName(item.name) === name && onlyDigits(item.cpf) === cpf);
+  if (!user) return null;
+
+  const bets = db.bets
+    .filter((bet) => bet.userId === user.id)
+    .map((bet) => ({
+      ...bet,
+      game: games.find((game) => game.id === bet.matchId),
+      settlement: buildUserBetSettlement(db, bet)
+    }));
+
+  return { user, bets };
+}
+
+function buildUserBetSettlement(db, bet) {
+  const game = games.find((item) => item.id === bet.matchId);
+  if (!game) return { status: "jogo_nao_encontrado", message: "Jogo não encontrado." };
+  const settlement = buildSettlement(db, game);
+  if (settlement.status !== "finalizado") {
+    return {
+      status: "aguardando_jogo",
+      message: "Aguardando o jogo terminar para conferir o resultado."
+    };
+  }
+
+  const winner = settlement.winners.find((item) => item.betId === bet.id);
+  return {
+    status: winner ? "ganhou" : "nao_ganhou",
+    result: settlement.result,
+    prize: winner ? settlement.prizePerWinner : 0,
+    message: winner ? "Você acertou o placar." : "Você não acertou o placar."
+  };
+}
+
+function buildSettlement(db, game) {
+  const result = db.results?.[game.id];
+  const paidBets = db.bets.filter((bet) => bet.matchId === game.id && bet.status === "paga");
+  const netPot = paidBets.length * betValue * (1 - appFeePercent / 100);
+
+  if (!result || result.status !== "finalizado") {
+    return {
+      matchId: game.id,
+      status: "aguardando_jogo",
+      message: "Aguardando o jogo terminar.",
+      paidBets: paidBets.length,
+      netPot,
+      winners: [],
+      prizePerWinner: 0
+    };
+  }
+
+  const winners = paidBets
+    .filter((bet) => Number(bet.homeScore) === Number(result.homeScore) && Number(bet.awayScore) === Number(result.awayScore))
+    .map((bet) => {
+      const user = db.users.find((item) => item.id === bet.userId);
+      return {
+        betId: bet.id,
+        userId: bet.userId,
+        name: user?.name || "Participante",
+        cpf: user?.cpf || "",
+        homeScore: bet.homeScore,
+        awayScore: bet.awayScore
+      };
+    });
+
+  return {
+    matchId: game.id,
+    status: "finalizado",
+    result,
+    paidBets: paidBets.length,
+    netPot,
+    winners,
+    prizePerWinner: winners.length ? netPot / winners.length : 0,
+    message: winners.length ? "Resultado calculado." : "Ninguém acertou o placar."
+  };
+}
+
+function saveManualResult(body) {
+  const matchId = String(body.matchId || "");
+  const game = games.find((item) => item.id === matchId);
+  if (!game) throw new Error("Jogo inválido.");
+  const homeScore = Number(body.homeScore);
+  const awayScore = Number(body.awayScore);
+  if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
+    throw new Error("Placar inválido.");
+  }
+
+  return updateDb((db) => {
+    db.results = db.results || {};
+    db.results[matchId] = {
+      matchId,
+      homeScore,
+      awayScore,
+      status: "finalizado",
+      source: "manual_admin",
+      updatedAt: new Date().toISOString()
+    };
+    return { result: db.results[matchId], settlement: buildSettlement(db, game) };
+  });
+}
+
+async function syncResultsFromSource() {
+  const sourceUrl = env("RESULTS_SOURCE_URL");
+  if (!sourceUrl) {
+    return {
+      updated: 0,
+      message: "RESULTS_SOURCE_URL não configurada. Configure uma API oficial/provedor para sincronização automática."
+    };
+  }
+
+  const response = await fetch(sourceUrl);
+  const data = await response.json();
+  const results = Array.isArray(data.results) ? data.results : Array.isArray(data) ? data : [];
+  let updated = 0;
+
+  updateDb((db) => {
+    db.results = db.results || {};
+    for (const item of results) {
+      const matchId = String(item.matchId || item.id || "");
+      if (!games.some((game) => game.id === matchId)) continue;
+      if (item.status !== "finalizado" && item.status !== "finished") continue;
+      const homeScore = Number(item.homeScore ?? item.home_score);
+      const awayScore = Number(item.awayScore ?? item.away_score);
+      if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) continue;
+      db.results[matchId] = {
+        matchId,
+        homeScore,
+        awayScore,
+        status: "finalizado",
+        source: item.source || "results_source_url",
+        updatedAt: new Date().toISOString()
+      };
+      updated += 1;
+    }
+  });
+
+  return { updated, message: `${updated} resultado(s) sincronizado(s).` };
+}
+
+function canBet(match) {
+  return Math.floor((new Date(match.startsAt).getTime() - Date.now()) / 60000) > 30;
+}
+
+function isOptionalScore(value) {
+  if (value === undefined || value === null || value === "") return true;
+  const score = Number(value);
+  return Number.isInteger(score) && score >= 0;
+}
+
+function serveStatic(req, res) {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const requested = decodeURIComponent(url.pathname === "/" ? "/index.html" : url.pathname);
+  const filePath = path.normalize(path.join(publicDir, requested));
+  if (!filePath.startsWith(publicDir)) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+  }
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    res.writeHead(404);
+    res.end("Not found");
+    return;
+  }
+  const ext = path.extname(filePath).toLowerCase();
+  res.writeHead(200, { "Content-Type": mimeTypes[ext] || "application/octet-stream" });
+  fs.createReadStream(filePath).pipe(res);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1_000_000) {
+        req.destroy();
+        reject(new Error("Payload muito grande."));
+      }
+    });
+    req.on("end", () => {
+      if (!body) return resolve({});
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        reject(new Error("JSON invalido."));
+      }
+    });
+  });
+}
+
+function sendJson(res, status, data) {
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*"
+  });
+  res.end(JSON.stringify(data));
+}
+
+function randomId(prefix) {
+  return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
+}
+
+function onlyDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function isValidCpf(value) {
+  const digits = onlyDigits(value);
+  return digits.length === 11 && !/^(\d)\1+$/.test(digits);
+}
+
+function isValidPhone(value) {
+  const digits = onlyDigits(value);
+  return digits.length >= 10 && digits.length <= 11 && !/^(\d)\1+$/.test(digits);
+}
+
+function normalizeName(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+}
