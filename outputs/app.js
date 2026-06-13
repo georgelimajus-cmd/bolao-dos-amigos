@@ -50,7 +50,7 @@ const matches = [
   fixture(28, "Fase de grupos", "Grupo A", "Mexico", "Coreia do Sul", "2026-06-18", "22:00", "Estadio Akron, Zapopan"),
   fixture(29, "Fase de grupos", "Grupo D", "Estados Unidos", "Australia", "2026-06-19", "16:00", "Lumen Field, Seattle"),
   fixture(30, "Fase de grupos", "Grupo C", "Escocia", "Marrocos", "2026-06-19", "19:00", "Lincoln Financial Field, Philadelphia"),
-  fixture(31, "Fase de grupos", "Grupo C", "Brasil", "Marrocos", "2026-06-19", "22:00", "Gillette Stadium, Foxborough"),
+  fixture(31, "Fase de grupos", "Grupo C", "Brasil", "Haiti", "2026-06-19", "21:30", "Lincoln Financial Field, Filadelfia"),
   fixture(32, "Fase de grupos", "Grupo D", "Turquia", "Paraguai", "2026-06-20", "01:00", "Levi's Stadium, Santa Clara"),
   fixture(33, "Fase de grupos", "Grupo F", "Holanda", "Suecia", "2026-06-20", "14:00", "NRG Stadium, Houston"),
   fixture(34, "Fase de grupos", "Grupo E", "Alemanha", "Costa do Marfim", "2026-06-20", "17:00", "BMO Field, Toronto"),
@@ -154,6 +154,7 @@ const els = {
   signupSummary: document.querySelector("#signupSummary"),
   newParticipantButton: document.querySelector("#newParticipantButton"),
   homeGameStatus: document.querySelector("#homeGameStatus"),
+  homeFinalResult: document.querySelector("#homeFinalResult"),
   netPrize: document.querySelector("#netPrize"),
   screenButtons: document.querySelectorAll("[data-screen-target]"),
   betPanel: document.querySelector("#apostas"),
@@ -483,12 +484,45 @@ function renderHomeGameStatus() {
   const closed = isBettingClosed(match);
   els.homeGameStatus.classList.toggle("is-hidden", !closed);
   els.homeGameStatus.textContent = closed
-    ? `${match.home} x ${match.away}: o jogo começou, fim das apostas. Aguarde o resultado!`
+    ? "Brasil x Marrocos: o jogo começou, fim das apostas. Aguarde o resultado!"
     : "";
   document.querySelectorAll('[data-screen-target="cadastro"]').forEach((button) => {
     button.classList.toggle("is-hidden", closed);
     button.disabled = closed;
   });
+}
+
+function renderHomeFinalResult(settlement) {
+  if (!els.homeFinalResult) return;
+  if (!settlement?.result) {
+    els.homeFinalResult.classList.add("is-hidden");
+    els.homeFinalResult.innerHTML = "";
+    return;
+  }
+
+  const game = settlement.game || {};
+  const resultText = `${escapeHtml(game.home)} ${settlement.result.homeScore} x ${settlement.result.awayScore} ${escapeHtml(game.away)}`;
+  const winners = settlement.winners || [];
+  const winnersText = winners.length
+    ? winners.map((winner) => escapeHtml(winner.name)).join(", ")
+    : "Nenhum ganhador";
+  const prizeText = winners.length
+    ? money(settlement.prizePerWinner || 0)
+    : money(0);
+  const splitText = winners.length > 1
+    ? `Valor dividido entre ${winners.length} ganhadores.`
+    : winners.length === 1
+      ? "Valor para o ganhador."
+      : "Ninguém acertou o placar.";
+
+  els.homeFinalResult.classList.remove("is-hidden");
+  els.homeFinalResult.innerHTML = `
+    <strong>Final do jogo: Ganhador(es) e Valor !</strong>
+    <span>Resultado: ${resultText}</span>
+    <span>Ganhador(es): ${winnersText}</span>
+    <span>Valor a receber: ${prizeText}</span>
+    <span>${splitText}</span>
+  `;
 }
 
 function renderCadastroStep() {
@@ -547,15 +581,18 @@ function renderStats() {
       .then((data) => {
         els.netPrize.textContent = money(data.netTotal || 0);
         currentMatchClosedFromServer = Boolean(data.currentMatchClosed);
+        renderHomeFinalResult(data.finalSettlement);
         renderHomeGameStatus();
       })
       .catch(() => {
         els.netPrize.textContent = money(0);
+        renderHomeFinalResult(null);
       });
     return;
   }
   const netTotal = Object.values(state.bets).filter((bet) => bet.paid).length * ENTRY_VALUE * (1 - ADMIN_PERCENT);
   els.netPrize.textContent = money(netTotal);
+  renderHomeFinalResult(null);
 }
 
 function populateGames() {
@@ -726,9 +763,10 @@ function renderAdminGames() {
   els.adminGames.innerHTML = brazilMatches
     .map((match) => {
       const bet = state.bets[match.id];
+      const noBetLabel = !bet && ["j031", "j051"].includes(match.id) ? " (Sem aposta)" : "";
       return `
         <div class="admin-row">
-          <strong>Jogo ${match.number}: ${match.home} x ${match.away}</strong>
+          <strong>Jogo ${match.number}: ${match.home} x ${match.away}${noBetLabel}</strong>
           <span>${formatDate(match)}</span>
           <span>${match.venue}</span>
           <span class="badge">${bet?.paid ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
@@ -813,9 +851,10 @@ async function renderAdminDataFromApi() {
     els.adminGames.innerHTML = data.games.map((match) => {
       const bet = data.bets.find((item) => item.matchId === match.id);
       const closed = manualClosedMatchIds.has(match.id) || (match.id === data.currentMatchId && data.currentMatchClosed);
+      const noBetLabel = !bet && ["j031", "j051"].includes(match.id) ? " (Sem aposta)" : "";
       return `
         <div class="admin-row">
-          <strong>Jogo ${match.number}: ${match.home} x ${match.away}</strong>
+          <strong>Jogo ${match.number}: ${match.home} x ${match.away}${noBetLabel}</strong>
           <span>${formatDate(match)}</span>
           <span>${match.venue}</span>
           <span class="badge">${closed ? "Apostas encerradas" : bet?.status === "paga" ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
@@ -1491,6 +1530,9 @@ function buildResultsHtml(data) {
         ? `Resultado: ${bet.game.home} ${settlement.result.homeScore} x ${settlement.result.awayScore} ${bet.game.away}`
         : "Resultado: aguardando o jogo";
       const prize = settlement.status === "ganhou" ? money(settlement.prize) : money(0);
+      const finalLine = settlement.result
+        ? `Final do jogo: ${settlement.status === "ganhou" ? "Você acertou o placar!" : "Você não acertou o placar."} Valor a receber: ${prize}`
+        : "Final do jogo: aguardando resultado.";
       return `
         <div class="admin-row">
           <strong>${escapeHtml(bet.game.home)} x ${escapeHtml(bet.game.away)}</strong>
@@ -1498,6 +1540,7 @@ function buildResultsHtml(data) {
           <span>${formatDate(bet.game)}</span>
           <span>Palpite feito em: ${formatDateTime(bet.guessAt || bet.paidAt || bet.createdAt)}</span>
           <span>${resultLine}</span>
+          <span><strong>${finalLine}</strong></span>
           <span>${settlement.message || "Aguardando o jogo."}</span>
           <span>Valor a receber: ${prize}</span>
           <span class="badge">${settlement.status === "ganhou" ? "Ganhou" : settlement.status === "nao_ganhou" ? "NÃ£o ganhou" : "Aguardando"}</span>

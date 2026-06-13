@@ -237,6 +237,18 @@ h2 {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.home-game-status {
+  margin: 0.75rem 0 0;
+  padding: 0.9rem 1rem;
+  border: 2px solid #d60000;
+  border-radius: 8px;
+  background: #fff2f2;
+  color: #d60000;
+  font-size: clamp(1rem, 2.6vw, 1.35rem);
+  font-weight: 900;
+  text-align: center;
+}
+
 .home-net-summary {
   display: grid;
   gap: 0.15rem;
@@ -260,6 +272,29 @@ h2 {
   color: var(--green-dark);
   font-size: clamp(1.65rem, 4vw, 2.55rem);
   line-height: 1.05;
+}
+
+.home-final-result {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 38rem;
+  margin: 0.9rem auto 0;
+  padding: 1rem;
+  border: 2px solid var(--yellow);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(7, 95, 55, 0.14);
+  text-align: center;
+}
+
+.home-final-result strong {
+  color: var(--green-dark);
+  font-size: clamp(1.05rem, 2.6vw, 1.45rem);
+}
+
+.home-final-result span {
+  color: #173326;
+  font-weight: 800;
 }
 
 .hero-signup {
@@ -514,6 +549,12 @@ select:focus {
   background: #fff0f0;
   color: #9b1c1c;
   border: 1px solid #f1b7b7;
+}
+
+.compact-danger {
+  width: fit-content;
+  min-height: 2.4rem;
+  padding: 0.55rem 0.85rem;
 }
 
 .button-row {
@@ -836,6 +877,35 @@ dd {
   font-size: 0.9rem;
 }
 
+.admin-bet-edit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(5rem, 8rem)) auto;
+  align-items: end;
+  gap: 0.65rem;
+  max-width: 28rem;
+  margin-top: 0.45rem;
+}
+
+.admin-bet-edit label {
+  display: grid;
+  gap: 0.3rem;
+  color: #143c25;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-bet-edit input {
+  min-height: 2.55rem;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.admin-bet-edit button {
+  min-height: 2.55rem;
+  padding: 0.65rem 0.9rem;
+}
+
 .success-message {
   display: grid;
   gap: 0.8rem;
@@ -981,6 +1051,15 @@ footer a {
   .match-list,
   .score-inputs {
     grid-template-columns: 1fr;
+  }
+
+  .admin-bet-edit {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+  }
+
+  .admin-bet-edit button {
+    grid-column: 1 / -1;
   }
 
   .phase-select {
