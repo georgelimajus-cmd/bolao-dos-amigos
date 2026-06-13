@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bolão dos Amigos - Copa do Mundo 2026</title>
+    <link rel="stylesheet" href="styles.css?v=20260613-6" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <img class="brand-logo" src="logo-bolao-160.png" alt="Bolão dos Amigos" width="160" height="90" />
+        <div>
+          <strong>Bolão dos Amigos</strong>
+          <span>Copa do Mundo 2026</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="Navegação">
+        <button type="button" data-screen-target="inicio">Início</button>
+        <button type="button" data-screen-target="cadastro">Cadastro</button>
+        <button type="button" data-screen-target="resultados">Resultados</button>
+        <button type="button" data-screen-target="regras">Regras</button>
+        <button type="button" data-screen-target="admin">Admin</button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero screen active-screen" id="inicio" aria-labelledby="titulo">
+        <div class="hero-copy">
+          <p class="eyebrow">Atenção para as instruções para participar do bolão.</p>
+          <h1 id="titulo" class="sr-only">Bolão dos Amigos - Copa do Mundo 2026</h1>
+          <div class="home-steps">
+            <p><strong>1º Passo:</strong> Faça seu cadastro.</p>
+            <p><strong>2º Passo:</strong> Efetue o pagamento e aguarde a confirmação.</p>
+            <p><strong>3º Passo:</strong> Faça seu palpite e boa sorte!</p>
+          </div>
+          <p class="home-game-status is-hidden" id="homeGameStatus"></p>
+          <p class="contact-line"><strong>Maiores informações:</strong> (99) 98495-9716 - George Lima</p>
+          <article class="home-net-summary" aria-label="Total líquido do bolão">
+            <span>Total líquido do bolão</span>
+            <strong id="netPrize">R$ 0,00</strong>
+          </article>
+          <div class="button-row home-actions">
+            <button type="button" class="primary" data-screen-target="cadastro">Cadastro</button>
+            <button type="button" class="success" data-screen-target="resultados">Ver resultados</button>
+          </div>
+        </div>
+        <div class="hero-logo-wrap" aria-hidden="true">
+          <img
+            class="hero-logo"
+            src="logo-bolao-420.png"
+            srcset="logo-bolao-420.png 420w, logo-bolao-760.png 760w"
+            sizes="(max-width: 620px) 90vw, (max-width: 900px) 70vw, 48vw"
+            alt=""
+            width="420"
+            height="236"
+          />
+        </div>
+      </section>
+
+      <section class="panel flow-panel screen" id="cadastro">
+        <div class="section-title">
+          <p>Tela 1</p>
+          <h2>Cadastro do participante</h2>
+        </div>
+        <form id="signupForm" class="form">
+          <label>
+            Nome completo
+            <input id="name" name="name" autocomplete="name" required minlength="3" placeholder="Seu nome" />
+          </label>
+          <label>
+            Celular
+            <input id="phone" name="phone" inputmode="tel" required placeholder="(99) 99999-9999" />
+          </label>
+          <label>
+            CPF
+            <input id="cpf" name="cpf" inputmode="numeric" required placeholder="000.000.000-00" />
+          </label>
+          <button type="submit" class="primary" id="signupButton">Continuar para pagamento</button>
+        </form>
+        <p class="notice" id="userStatus">Faça seu cadastro uma única vez para apostar nos jogos do Brasil.</p>
+        <div class="summary is-hidden" id="signupSummary"></div>
+        <button type="button" class="primary is-hidden" id="newParticipantButton">Cadastrar novo apostador</button>
+      </section>
+
+      <section class="panel flow-panel screen" id="pagamento">
+        <div class="section-title">
+          <p>Tela 2</p>
+          <h2>Pagamento por PIX</h2>
+        </div>
+        <div class="single-match" id="paymentMatch"></div>
+        <div class="payment-grid">
+          <div class="qr-box">
+            <img id="qrImage" alt="QR Code PIX" />
+            <canvas id="qrFallback" width="220" height="220" aria-hidden="true"></canvas>
+          </div>
+          <div class="payment-details">
+            <dl>
+              <div>
+                <dt>Valor da aposta</dt>
+                <dd>R$ 10,00</dd>
+              </div>
+              <div>
+                <dt>Status</dt>
+                <dd id="paymentStatus">Aguardando aposta</dd>
+              </div>
+              <div>
+                <dt>ID do pedido</dt>
+                <dd id="orderId">-</dd>
+              </div>
+            </dl>
+            <label>
+              PIX copia e cola
+              <textarea id="pixCode" readonly rows="5" placeholder="O código PIX aparecerá aqui."></textarea>
+            </label>
+            <div class="button-row">
+              <button id="copyPix" type="button">Copiar PIX</button>
+              <button id="simulatePayment" type="button" class="success">Confirmar pagamento</button>
+              <a id="ticketUrl" class="payment-link is-hidden" href="#" target="_blank" rel="noreferrer">Abrir pagamento</a>
+            </div>
+            <p class="notice" id="paymentHelp">O palpite será liberado automaticamente quando o pagamento for confirmado.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel flow-panel screen" id="apostas">
+        <div class="section-title">
+          <p>Tela 3</p>
+          <h2>Palpite do jogo do Brasil</h2>
+        </div>
+        <form id="betForm" class="form">
+          <div class="single-match" id="singleMatch"></div>
+          <button type="submit" class="primary" id="confirmBet">Salvar palpite</button>
+        </form>
+        <p class="notice" id="betStatus">Uma aposta por jogo. O sistema exibe sempre apenas o jogo atual do Brasil.</p>
+      </section>
+
+      <section class="panel flow-panel screen" id="confirmacao">
+        <div class="section-title">
+          <p>Final</p>
+          <h2>Aposta confirmada</h2>
+        </div>
+        <div class="success-message" id="successMessage"></div>
+        <div class="button-row">
+          <button type="button" class="primary" id="newBetButton">Sair</button>
+        </div>
+      </section>
+
+      <section class="panel flow-panel screen" id="resultados">
+        <div class="section-title">
+          <p>Consulta</p>
+          <h2>Ver resultados</h2>
+        </div>
+        <form id="resultsForm" class="form">
+          <label>
+            Nome completo
+            <input id="resultsName" autocomplete="name" required placeholder="Digite seu nome completo" />
+          </label>
+          <label>
+            CPF
+            <input id="resultsCpf" inputmode="numeric" required placeholder="000.000.000-00" />
+          </label>
+          <button type="submit" class="primary">Entrar</button>
+        </form>
+        <div class="summary results-box" id="resultsBox">
+          Informe nome completo e CPF para visualizar seus palpites.
+        </div>
+      </section>
+
+      <section class="panel flow-panel screen" id="regras">
+        <div class="section-title">
+          <p>Informações</p>
+          <h2>Resumo das Regras</h2>
+        </div>
+        <div class="summary rules-box">
+          <p>Participe do bolão dando seus palpites nos jogos da Copa do Mundo 2026. Ao confirmar sua participação, o valor pago será somado ao prêmio geral do bolão.</p>
+          <p>Do total arrecadado, 25% será destinado à manutenção, operação e administração do sistema, garantindo o funcionamento da plataforma, controle dos palpites, pagamentos e organização geral.</p>
+          <p>Os 75% restantes formarão a premiação dos vencedores, conforme as regras de pontuação definidas para cada jogo. Em caso de empate entre participantes, o prêmio poderá ser dividido igualmente entre os ganhadores.</p>
+        </div>
+      </section>
+
+      <section class="panel flow-panel screen" id="admin">
+        <div class="section-title">
+          <p>Área restrita</p>
+          <h2>Menu do administrador</h2>
+        </div>
+        <form id="adminLoginForm" class="form admin-login">
+          <label>
+            PIN do administrador
+            <input id="adminPin" type="password" inputmode="numeric" placeholder="Digite o PIN" autocomplete="off" />
+          </label>
+          <button type="submit" class="primary">Entrar no admin</button>
+        </form>
+        <p class="notice" id="adminStatus">Somente o administrador visualiza jogos, cadastro e apostas feitas.</p>
+        <div class="admin-dashboard is-hidden" id="adminDashboard">
+          <div class="admin-actions">
+            <button type="button" class="success" id="adminRefresh">Atualizar dados</button>
+            <button type="button" id="adminBackup">Baixar backup</button>
+            <button type="button" id="adminRestore">Importar backup</button>
+            <input class="is-hidden" id="adminRestoreFile" type="file" accept="application/json,.json" />
+            <button type="button" id="adminLogout">Sair do admin</button>
+          </div>
+          <div class="admin-grid">
+            <article class="admin-card">
+              <h3>Cadastro</h3>
+              <div id="adminUsers"></div>
+            </article>
+            <article class="admin-card">
+              <h3>Jogos do Brasil</h3>
+              <div id="adminGames"></div>
+            </article>
+            <article class="admin-card admin-card-wide">
+              <h3>Apostas feitas</h3>
+              <div id="adminBets"></div>
+            </article>
+            <article class="admin-card admin-card-wide">
+              <h3>Resultados, ganhadores e rateio</h3>
+              <div id="adminResults"></div>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Dê seu palpite, torça com os amigos e viva cada jogo da Copa 2026!</span>
+      <a href="https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums" target="_blank" rel="noreferrer">Calendário FIFA</a>
+    </footer>
+
+    <script src="app.js?v=20260613-6"></script>
+  </body>
+</html>
