@@ -832,6 +832,7 @@ async function ensurePaymentForCurrentMatch() {
 async function renderAdminDataFromApi() {
   try {
     const data = await apiGet(`/api/admin?pin=${encodeURIComponent(ADMIN_PIN)}`);
+    data.games = (data.games || []).map(normalizeGameDisplay);
     adminCurrentMatchId = data.currentMatchId || null;
     adminCurrentMatchClosed = Boolean(data.currentMatchClosed);
     manualClosedMatchIds = new Set(data.settings?.manualClosedMatchIds || []);
@@ -1139,6 +1140,18 @@ function normalizeApiBet(bet) {
     paidAt: bet.paidAt,
     createdAt: bet.createdAt,
     guessAt: bet.guessAt
+  };
+}
+
+function normalizeGameDisplay(game) {
+  if (game?.id !== "j031") return game;
+  return {
+    ...game,
+    home: "Brasil",
+    away: "Haiti",
+    venue: "Lincoln Financial Field, Filadelfia",
+    displayTime: "21:30",
+    startsAt: "2026-06-19T21:30:00-03:00"
   };
 }
 
