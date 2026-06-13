@@ -1,6 +1,60 @@
 {
-  "users": [],
-  "bets": [],
+  "users": [
+    {
+      "id": "usr_joana_darque",
+      "name": "Joana Darque Rodrigues Castelo Lima",
+      "phone": "(99) 8120-8636",
+      "cpf": "002.133.943-08",
+      "status": "ativo",
+      "createdAt": "2026-06-13T03:34:00.000Z",
+      "paidAt": "2026-06-13T03:34:00.000Z"
+    },
+    {
+      "id": "usr_jonathan_wlyssys",
+      "name": "Jonathan Wlyssys Castelo Lima",
+      "phone": "(99) 99189-7424",
+      "cpf": "036.114.973-55",
+      "status": "ativo",
+      "createdAt": "2026-06-13T03:34:00.000Z",
+      "paidAt": "2026-06-13T03:34:00.000Z"
+    }
+  ],
+  "bets": [
+    {
+      "id": "bet_84fd75db39a40973",
+      "userId": "usr_joana_darque",
+      "matchId": "j006",
+      "homeScore": 2,
+      "awayScore": 1,
+      "value": 10,
+      "status": "paga",
+      "provider": "manual_restore",
+      "providerPaymentId": "manual_restore_joana",
+      "qrCode": "",
+      "qrCodeBase64": "",
+      "ticketUrl": "",
+      "createdAt": "2026-06-13T03:34:00.000Z",
+      "paidAt": "2026-06-13T03:34:00.000Z",
+      "guessAt": "2026-06-13T03:34:00.000Z"
+    },
+    {
+      "id": "bet_d0e52f23744947b6",
+      "userId": "usr_jonathan_wlyssys",
+      "matchId": "j006",
+      "homeScore": 2,
+      "awayScore": 1,
+      "value": 10,
+      "status": "paga",
+      "provider": "manual_restore",
+      "providerPaymentId": "manual_restore_jonathan",
+      "qrCode": "",
+      "qrCodeBase64": "",
+      "ticketUrl": "",
+      "createdAt": "2026-06-13T03:34:00.000Z",
+      "paidAt": "2026-06-13T03:34:00.000Z",
+      "guessAt": "2026-06-13T03:34:00.000Z"
+    }
+  ],
   "payments": [],
   "results": {}
 }

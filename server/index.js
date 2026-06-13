@@ -144,6 +144,28 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/admin/backup") {
+    const pin = url.searchParams.get("pin");
+    if (pin !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    sendJson(res, 200, {
+      exportedAt: new Date().toISOString(),
+      data: readDb()
+    });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/restaurar") {
+    const body = await readBody(req);
+    if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const result = restoreBackup(body);
+    sendJson(res, 200, result);
+    return;
+  }
+
   if (req.method === "DELETE" && url.pathname.startsWith("/api/admin/usuarios/")) {
     const pin = url.searchParams.get("pin");
     if (pin !== env("ADMIN_PIN", "a20b30c40d@")) {
@@ -393,6 +415,70 @@ function cleanupExpiredPendingRecords() {
       return db.bets.some((bet) => bet.userId === user.id && bet.status === "paga");
     });
   });
+}
+
+function restoreBackup(body) {
+  const incoming = normalizeBackupPayload(body);
+  return updateDb((db) => {
+    const before = {
+      users: db.users.length,
+      bets: db.bets.length,
+      payments: (db.payments || []).length,
+      results: Object.keys(db.results || {}).length
+    };
+
+    db.users = mergeById(db.users || [], incoming.users);
+    db.bets = mergeById(db.bets || [], incoming.bets);
+    db.payments = mergeByPaymentKey(db.payments || [], incoming.payments);
+    db.results = { ...(db.results || {}), ...(incoming.results || {}) };
+
+    return {
+      ok: true,
+      imported: {
+        users: db.users.length - before.users,
+        bets: db.bets.length - before.bets,
+        payments: db.payments.length - before.payments,
+        results: Object.keys(db.results || {}).length - before.results
+      },
+      totals: {
+        users: db.users.length,
+        bets: db.bets.length,
+        payments: db.payments.length,
+        results: Object.keys(db.results || {}).length
+      }
+    };
+  });
+}
+
+function normalizeBackupPayload(body) {
+  const source = body?.data || body?.backup || body;
+  if (!source || typeof source !== "object") throw new Error("Backup invalido.");
+  return {
+    users: Array.isArray(source.users) ? source.users : [],
+    bets: Array.isArray(source.bets) ? source.bets : [],
+    payments: Array.isArray(source.payments) ? source.payments : [],
+    results: source.results && typeof source.results === "object" ? source.results : {}
+  };
+}
+
+function mergeById(current, incoming) {
+  const map = new Map(current.map((item) => [item.id, item]));
+  for (const item of incoming) {
+    if (!item || !item.id) continue;
+    map.set(item.id, { ...(map.get(item.id) || {}), ...item });
+  }
+  return Array.from(map.values());
+}
+
+function mergeByPaymentKey(current, incoming) {
+  const keyOf = (item) => item?.id || item?.providerPaymentId || item?.externalReference;
+  const map = new Map(current.map((item) => [keyOf(item), item]).filter(([key]) => key));
+  for (const item of incoming) {
+    const key = keyOf(item);
+    if (!key) continue;
+    map.set(key, { ...(map.get(key) || {}), ...item });
+  }
+  return Array.from(map.values());
 }
 
 function deleteUser(userId) {

@@ -173,6 +173,9 @@ const els = {
   adminStatus: document.querySelector("#adminStatus"),
   adminDashboard: document.querySelector("#adminDashboard"),
   adminRefresh: document.querySelector("#adminRefresh"),
+  adminBackup: document.querySelector("#adminBackup"),
+  adminRestore: document.querySelector("#adminRestore"),
+  adminRestoreFile: document.querySelector("#adminRestoreFile"),
   adminLogout: document.querySelector("#adminLogout"),
   adminUsers: document.querySelector("#adminUsers"),
   adminGames: document.querySelector("#adminGames"),
@@ -374,6 +377,9 @@ function bindEvents() {
   });
 
   els.adminRefresh.addEventListener("click", renderAdminData);
+  els.adminBackup.addEventListener("click", downloadAdminBackup);
+  els.adminRestore.addEventListener("click", () => els.adminRestoreFile.click());
+  els.adminRestoreFile.addEventListener("change", restoreAdminBackup);
   els.adminUsers.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-user]");
     if (!button) return;
@@ -777,6 +783,14 @@ async function renderAdminDataFromApi() {
     }).join("");
   } catch (error) {
     els.adminStatus.textContent = error.message;
+    state.adminUnlocked = false;
+    saveState();
+    els.adminLoginForm.classList.remove("is-hidden");
+    els.adminDashboard.classList.add("is-hidden");
+    els.adminUsers.innerHTML = "";
+    els.adminGames.innerHTML = "";
+    els.adminBets.innerHTML = "";
+    els.adminResults.innerHTML = "";
   }
 }
 
@@ -802,6 +816,63 @@ async function deleteAdminUser(userId) {
   } catch (error) {
     els.adminStatus.textContent = error.message;
   }
+}
+
+async function downloadAdminBackup() {
+  try {
+    if (!HAS_API) {
+      const localBackup = {
+        exportedAt: new Date().toISOString(),
+        data: {
+          users: state.user ? [state.user] : [],
+          bets: Object.values(state.bets),
+          payments: [],
+          results: {}
+        }
+      };
+      downloadJson(localBackup, `backup-bolao-${Date.now()}.json`);
+      return;
+    }
+    const backup = await apiGet(`/api/admin/backup?pin=${encodeURIComponent(ADMIN_PIN)}`);
+    downloadJson(backup, `backup-bolao-${Date.now()}.json`);
+  } catch (error) {
+    els.adminStatus.textContent = error.message;
+  }
+}
+
+async function restoreAdminBackup() {
+  const file = els.adminRestoreFile.files?.[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if (!HAS_API) {
+      throw new Error("Importação de backup exige o backend ativo.");
+    }
+    const result = await apiPost("/api/admin/restaurar", {
+      pin: ADMIN_PIN,
+      ...backup
+    });
+    els.adminStatus.textContent = `Backup importado. Cadastros: ${result.totals.users}. Apostas: ${result.totals.bets}.`;
+    await renderAdminData();
+  } catch (error) {
+    els.adminStatus.textContent = `Erro ao importar backup: ${error.message}`;
+  } finally {
+    els.adminRestoreFile.value = "";
+  }
+}
+
+function downloadJson(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function normalizeApiBet(bet) {
