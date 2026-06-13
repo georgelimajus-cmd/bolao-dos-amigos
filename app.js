@@ -173,6 +173,7 @@ const els = {
   adminStatus: document.querySelector("#adminStatus"),
   adminDashboard: document.querySelector("#adminDashboard"),
   adminRefresh: document.querySelector("#adminRefresh"),
+  adminBackup: document.querySelector("#adminBackup"),
   adminLogout: document.querySelector("#adminLogout"),
   adminUsers: document.querySelector("#adminUsers"),
   adminGames: document.querySelector("#adminGames"),
@@ -374,6 +375,7 @@ function bindEvents() {
   });
 
   els.adminRefresh.addEventListener("click", renderAdminData);
+  els.adminBackup.addEventListener("click", downloadAdminBackup);
   els.adminUsers.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-user]");
     if (!button) return;
@@ -810,6 +812,40 @@ async function deleteAdminUser(userId) {
   } catch (error) {
     els.adminStatus.textContent = error.message;
   }
+}
+
+async function downloadAdminBackup() {
+  try {
+    if (!HAS_API) {
+      const localBackup = {
+        exportedAt: new Date().toISOString(),
+        data: {
+          users: state.user ? [state.user] : [],
+          bets: Object.values(state.bets),
+          payments: [],
+          results: {}
+        }
+      };
+      downloadJson(localBackup, `backup-bolao-${Date.now()}.json`);
+      return;
+    }
+    const backup = await apiGet(`/api/admin/backup?pin=${encodeURIComponent(ADMIN_PIN)}`);
+    downloadJson(backup, `backup-bolao-${Date.now()}.json`);
+  } catch (error) {
+    els.adminStatus.textContent = error.message;
+  }
+}
+
+function downloadJson(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function normalizeApiBet(bet) {

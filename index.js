@@ -144,6 +144,18 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/admin/backup") {
+    const pin = url.searchParams.get("pin");
+    if (pin !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    sendJson(res, 200, {
+      exportedAt: new Date().toISOString(),
+      data: readDb()
+    });
+    return;
+  }
+
   if (req.method === "DELETE" && url.pathname.startsWith("/api/admin/usuarios/")) {
     const pin = url.searchParams.get("pin");
     if (pin !== env("ADMIN_PIN", "a20b30c40d@")) {

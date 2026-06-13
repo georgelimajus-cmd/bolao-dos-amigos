@@ -20,6 +20,7 @@ ADMIN_PIN=a20b30c40d@
 APP_FEE_PERCENT=25
 BET_VALUE=10
 NODE_ENV=production
+DATA_DIR=/var/data
 MERCADO_PAGO_ENABLED=true
 MERCADO_PAGO_ACCESS_TOKEN=APP_USR_COLE_SEU_ACCESS_TOKEN_DE_PRODUCAO
 MERCADO_PAGO_WEBHOOK_SECRET=COLE_A_CHAVE_SECRETA_DO_WEBHOOK
@@ -82,4 +83,16 @@ https://seudominio.com.br/api/health
 
 ## 7. Observacao sobre banco de dados
 
-Este prototipo ainda grava dados em `data/db.json`. Para uso publico com muitos participantes, o proximo passo recomendado e migrar para PostgreSQL, MySQL ou outro banco gerenciado. Isso evita perda de dados em hospedagens que reiniciam ou apagam arquivos locais.
+Este prototipo grava dados em um arquivo `db.json`. Em producao, configure um disco/volume persistente na hospedagem e aponte `DATA_DIR` para o caminho montado.
+
+No Render, crie um Disk para o servico e use:
+
+```env
+DATA_DIR=/var/data
+```
+
+Sem disco persistente, cadastros e apostas podem desaparecer em deploys, reinicios ou troca de instancia.
+
+Antes de fazer deploy, use o botao **Baixar backup** no Admin para guardar uma copia JSON dos dados.
+
+Para uso publico com muitos participantes, o proximo passo recomendado e migrar para PostgreSQL, MySQL ou outro banco gerenciado.
