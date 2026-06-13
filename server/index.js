@@ -106,7 +106,7 @@ async function handleApi(req, res) {
     return;
   }
 
-  if (req.method === "POST" && url.pathname.endsWith("/palpite")) {
+  if (req.method === "POST" && url.pathname.endsWith("/palpite") && !url.pathname.startsWith("/api/admin/")) {
     const parts = url.pathname.split("/");
     const id = parts[3];
     const body = await readBody(req);
@@ -163,6 +163,30 @@ async function handleApi(req, res) {
     }
     const result = restoreBackup(body);
     sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/alterar-palpite") {
+    const body = await readBody(req);
+    if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const bet = updateGuessByAdmin(String(body.betId || ""), body);
+    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    sendJson(res, 200, { bet });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname.startsWith("/api/admin/apostas/") && url.pathname.endsWith("/palpite")) {
+    const body = await readBody(req);
+    if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const parts = url.pathname.split("/");
+    const betId = decodeURIComponent(parts[4]);
+    const bet = updateGuessByAdmin(betId, body);
+    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    sendJson(res, 200, { bet });
     return;
   }
 
@@ -324,11 +348,7 @@ async function createBet(body) {
 }
 
 function saveGuess(betId, body) {
-  const homeScore = Number(body.homeScore ?? body.placar_casa);
-  const awayScore = Number(body.awayScore ?? body.placar_fora);
-  if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
-    throw new Error("Placar invalido.");
-  }
+  const { homeScore, awayScore } = parseRequiredScore(body);
 
   return updateDb((db) => {
     const bet = db.bets.find((item) => item.id === betId);
@@ -342,6 +362,35 @@ function saveGuess(betId, body) {
     bet.guessAt = new Date().toISOString();
     return bet;
   });
+}
+
+function updateGuessByAdmin(betId, body) {
+  const { homeScore, awayScore } = parseRequiredScore(body);
+
+  return updateDb((db) => {
+    const bet = db.bets.find((item) => item.id === betId);
+    if (!bet) return null;
+    if (bet.status !== "paga") throw new Error("Somente apostas pagas podem ter palpite alterado.");
+    bet.homeScore = homeScore;
+    bet.awayScore = awayScore;
+    bet.guessAt = bet.guessAt || new Date().toISOString();
+    bet.updatedByAdminAt = new Date().toISOString();
+    return bet;
+  });
+}
+
+function parseRequiredScore(body) {
+  const homeRaw = body.homeScore ?? body.placar_casa;
+  const awayRaw = body.awayScore ?? body.placar_fora;
+  if (homeRaw === undefined || homeRaw === null || homeRaw === "" || awayRaw === undefined || awayRaw === null || awayRaw === "") {
+    throw new Error("Digite o palpite completo para finalizar a aposta.");
+  }
+  const homeScore = Number(homeRaw);
+  const awayScore = Number(awayRaw);
+  if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
+    throw new Error("Placar invalido.");
+  }
+  return { homeScore, awayScore };
 }
 
 async function handleMercadoPagoWebhook(body) {
@@ -671,7 +720,13 @@ function serveStatic(req, res) {
     return;
   }
   const ext = path.extname(filePath).toLowerCase();
-  res.writeHead(200, { "Content-Type": mimeTypes[ext] || "application/octet-stream" });
+  const headers = { "Content-Type": mimeTypes[ext] || "application/octet-stream" };
+  if ([".html", ".css", ".js"].includes(ext)) {
+    headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate";
+    headers.Pragma = "no-cache";
+    headers.Expires = "0";
+  }
+  res.writeHead(200, headers);
   fs.createReadStream(filePath).pipe(res);
 }
 
