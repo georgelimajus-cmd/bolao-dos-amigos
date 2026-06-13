@@ -709,7 +709,13 @@ function serveStatic(req, res) {
     return;
   }
   const ext = path.extname(filePath).toLowerCase();
-  res.writeHead(200, { "Content-Type": mimeTypes[ext] || "application/octet-stream" });
+  const headers = { "Content-Type": mimeTypes[ext] || "application/octet-stream" };
+  if ([".html", ".css", ".js"].includes(ext)) {
+    headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate";
+    headers.Pragma = "no-cache";
+    headers.Expires = "0";
+  }
+  res.writeHead(200, headers);
   fs.createReadStream(filePath).pipe(res);
 }
 
