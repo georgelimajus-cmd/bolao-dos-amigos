@@ -54,6 +54,8 @@ POST /api/apostas
 GET  /api/apostas/:id
 GET  /api/admin?pin=a20b30c40d@
 POST /api/webhook/mercadopago
+GET  /api/admin/backup?pin=a20b30c40d@
+POST /api/admin/restaurar
 ```
 
 ## 4. Configurar webhook no Mercado Pago

@@ -95,4 +95,24 @@ Sem disco persistente, cadastros e apostas podem desaparecer em deploys, reinici
 
 Antes de fazer deploy, use o botao **Baixar backup** no Admin para guardar uma copia JSON dos dados.
 
+Para restaurar um backup, use o botao **Importar backup** no Admin ou envie:
+
+```txt
+POST /api/admin/restaurar
+```
+
+com JSON no formato:
+
+```json
+{
+  "pin": "a20b30c40d@",
+  "data": {
+    "users": [],
+    "bets": [],
+    "payments": [],
+    "results": {}
+  }
+}
+```
+
 Para uso publico com muitos participantes, o proximo passo recomendado e migrar para PostgreSQL, MySQL ou outro banco gerenciado.

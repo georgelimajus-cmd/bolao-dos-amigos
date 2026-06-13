@@ -174,6 +174,8 @@ const els = {
   adminDashboard: document.querySelector("#adminDashboard"),
   adminRefresh: document.querySelector("#adminRefresh"),
   adminBackup: document.querySelector("#adminBackup"),
+  adminRestore: document.querySelector("#adminRestore"),
+  adminRestoreFile: document.querySelector("#adminRestoreFile"),
   adminLogout: document.querySelector("#adminLogout"),
   adminUsers: document.querySelector("#adminUsers"),
   adminGames: document.querySelector("#adminGames"),
@@ -376,6 +378,8 @@ function bindEvents() {
 
   els.adminRefresh.addEventListener("click", renderAdminData);
   els.adminBackup.addEventListener("click", downloadAdminBackup);
+  els.adminRestore.addEventListener("click", () => els.adminRestoreFile.click());
+  els.adminRestoreFile.addEventListener("change", restoreAdminBackup);
   els.adminUsers.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-user]");
     if (!button) return;
@@ -833,6 +837,29 @@ async function downloadAdminBackup() {
     downloadJson(backup, `backup-bolao-${Date.now()}.json`);
   } catch (error) {
     els.adminStatus.textContent = error.message;
+  }
+}
+
+async function restoreAdminBackup() {
+  const file = els.adminRestoreFile.files?.[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if (!HAS_API) {
+      throw new Error("Importação de backup exige o backend ativo.");
+    }
+    const result = await apiPost("/api/admin/restaurar", {
+      pin: ADMIN_PIN,
+      ...backup
+    });
+    els.adminStatus.textContent = `Backup importado. Cadastros: ${result.totals.users}. Apostas: ${result.totals.bets}.`;
+    await renderAdminData();
+  } catch (error) {
+    els.adminStatus.textContent = `Erro ao importar backup: ${error.message}`;
+  } finally {
+    els.adminRestoreFile.value = "";
   }
 }
 
