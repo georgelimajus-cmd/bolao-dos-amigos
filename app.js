@@ -297,8 +297,22 @@ function bindEvents() {
       return;
     }
 
-    const home = Number(document.querySelector("#betHomeScore").value);
-    const away = Number(document.querySelector("#betAwayScore").value);
+    const homeInput = document.querySelector("#betHomeScore");
+    const awayInput = document.querySelector("#betAwayScore");
+    const homeRaw = homeInput.value.trim();
+    const awayRaw = awayInput.value.trim();
+    if (homeRaw === "" || awayRaw === "") {
+      els.betStatus.textContent = "Digite o palpite completo para finalizar a aposta.";
+      if (homeRaw === "") homeInput.focus();
+      else awayInput.focus();
+      return;
+    }
+    const home = Number(homeRaw);
+    const away = Number(awayRaw);
+    if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
+      els.betStatus.textContent = "Informe um placar válido para finalizar a aposta.";
+      return;
+    }
     try {
       if (HAS_API) {
         const result = await apiPost(`/api/apostas/${existingBet.id}/palpite`, {
@@ -384,6 +398,11 @@ function bindEvents() {
     const button = event.target.closest("[data-delete-user]");
     if (!button) return;
     await deleteAdminUser(button.dataset.deleteUser);
+  });
+  els.adminBets.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-edit-bet]");
+    if (!button) return;
+    await editAdminBet(button.dataset.editBet);
   });
 
   els.adminLogout.addEventListener("click", () => {
@@ -752,6 +771,7 @@ async function renderAdminDataFromApi() {
               <span>Participante: ${user ? escapeHtml(user.name) : "-"}</span>
               <span>Pedido: ${escapeHtml(bet.id)}</span>
               <span class="badge">${bet.status === "paga" ? "Pago" : "Aguardando pagamento"}</span>
+              <button type="button" data-edit-bet="${escapeHtml(bet.id)}">Alterar palpite</button>
             </div>
           `;
         }).join("")
@@ -813,6 +833,32 @@ async function deleteAdminUser(userId) {
     await renderAdminData();
     renderAll();
     els.adminStatus.textContent = "Cadastro excluído com sucesso.";
+  } catch (error) {
+    els.adminStatus.textContent = error.message;
+  }
+}
+
+async function editAdminBet(betId) {
+  const homeRaw = window.prompt("Novo placar do primeiro time:");
+  if (homeRaw === null) return;
+  const awayRaw = window.prompt("Novo placar do segundo time:");
+  if (awayRaw === null) return;
+
+  const homeScore = Number(String(homeRaw).trim());
+  const awayScore = Number(String(awayRaw).trim());
+  if (String(homeRaw).trim() === "" || String(awayRaw).trim() === "" || !Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
+    els.adminStatus.textContent = "Informe um placar válido para alterar o palpite.";
+    return;
+  }
+
+  try {
+    await apiPost(`/api/admin/apostas/${encodeURIComponent(betId)}/palpite`, {
+      pin: ADMIN_PIN,
+      homeScore,
+      awayScore
+    });
+    els.adminStatus.textContent = "Palpite alterado com sucesso.";
+    await renderAdminData();
   } catch (error) {
     els.adminStatus.textContent = error.message;
   }
