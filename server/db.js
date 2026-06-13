@@ -73,7 +73,10 @@ function defaultDb() {
     users: [...restoredSeedData.users],
     bets: [...restoredSeedData.bets],
     payments: [],
-    results: {}
+    results: {},
+    settings: {
+      manualClosedMatchIds: []
+    }
   };
 }
 
@@ -110,6 +113,24 @@ function ensureRestoredSeedData(db) {
   db.bets = Array.isArray(db.bets) ? db.bets : [];
   db.payments = Array.isArray(db.payments) ? db.payments : [];
   db.results = db.results && typeof db.results === "object" ? db.results : {};
+  db.settings = db.settings && typeof db.settings === "object" ? db.settings : {};
+  db.settings.manualClosedMatchIds = Array.isArray(db.settings.manualClosedMatchIds)
+    ? db.settings.manualClosedMatchIds
+    : [];
+
+  if (!db.settings.repairedJ031BetsToJ006) {
+    for (const bet of db.bets) {
+      if (bet && bet.matchId === "j031") {
+        bet.migratedFromMatchId = "j031";
+        bet.matchId = "j006";
+        bet.migratedToMatchId = "j006";
+        bet.migratedAt = new Date().toISOString();
+        changed = true;
+      }
+    }
+    db.settings.repairedJ031BetsToJ006 = true;
+    changed = true;
+  }
 
   for (const user of restoredSeedData.users) {
     if (!db.users.some((item) => item.id === user.id)) {
