@@ -16,8 +16,8 @@ Configure estas variaveis na hospedagem:
 ```env
 PORT=3000
 BASE_URL=https://seudominio.com.br
-ADMIN_PIN=TROQUE-ESTE-PIN
-APP_FEE_PERCENT=30
+ADMIN_PIN=a20b30c40d@
+APP_FEE_PERCENT=25
 BET_VALUE=10
 NODE_ENV=production
 MERCADO_PAGO_ENABLED=true

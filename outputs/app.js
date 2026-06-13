@@ -1,6 +1,6 @@
 const ENTRY_VALUE = 10;
-const ADMIN_PERCENT = 0.3;
-const ADMIN_PIN = "2026";
+const ADMIN_PERCENT = 0.25;
+const ADMIN_PIN = "a20b30c40d@";
 const PIX_KEY = "11999999999";
 const MERCHANT_NAME = "BOLAO DOS AMIGOS";
 const MERCHANT_CITY = "SAO PAULO";
@@ -218,7 +218,7 @@ function bindEvents() {
   els.screenButtons.forEach((button) => {
     button.addEventListener("click", async () => {
       const target = button.dataset.screenTarget;
-      if (target === "inicio" || target === "cadastro" || target === "resultados" || target === "admin") {
+      if (target === "inicio" || target === "cadastro" || target === "resultados" || target === "regras" || target === "admin") {
         showScreen(target);
         return;
       }

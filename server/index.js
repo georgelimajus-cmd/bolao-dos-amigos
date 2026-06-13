@@ -12,8 +12,9 @@ loadEnv();
 const publicDir = path.join(__dirname, "..", "outputs");
 const port = Number(env("PORT", "3000"));
 const betValue = Number(env("BET_VALUE", "10"));
-const appFeePercent = Number(env("APP_FEE_PERCENT", "30"));
+const appFeePercent = Number(env("APP_FEE_PERCENT", "25"));
 const resultsSyncMinutes = Number(env("RESULTS_SYNC_MINUTES", "10"));
+const pendingPaymentTtlMinutes = Number(env("PENDING_PAYMENT_TTL_MINUTES", "60"));
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -51,6 +52,7 @@ if (env("RESULTS_SOURCE_URL")) {
 
 async function handleApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  cleanupExpiredPendingRecords();
 
   if (req.method === "GET" && url.pathname === "/api/health") {
     sendJson(res, 200, {
@@ -125,6 +127,7 @@ async function handleApi(req, res) {
       if (!item) return null;
       item.status = "paga";
       item.paidAt = new Date().toISOString();
+      activateUserForPaidBet(db, item);
       return item;
     });
     if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
@@ -134,7 +137,7 @@ async function handleApi(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/admin") {
     const pin = url.searchParams.get("pin");
-    if (pin !== env("ADMIN_PIN", "2026")) {
+    if (pin !== env("ADMIN_PIN", "a20b30c40d@")) {
       return sendJson(res, 401, { error: "PIN incorreto." });
     }
     sendJson(res, 200, buildAdminData());
@@ -143,7 +146,7 @@ async function handleApi(req, res) {
 
   if (req.method === "DELETE" && url.pathname.startsWith("/api/admin/usuarios/")) {
     const pin = url.searchParams.get("pin");
-    if (pin !== env("ADMIN_PIN", "2026")) {
+    if (pin !== env("ADMIN_PIN", "a20b30c40d@")) {
       return sendJson(res, 401, { error: "PIN incorreto." });
     }
     const userId = decodeURIComponent(url.pathname.split("/").pop());
@@ -155,7 +158,7 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/admin/sincronizar-resultados") {
     const body = await readBody(req);
-    if (String(body.pin || "") !== env("ADMIN_PIN", "2026")) {
+    if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
       return sendJson(res, 401, { error: "PIN incorreto." });
     }
     const result = await syncResultsFromSource();
@@ -165,7 +168,7 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/admin/resultado-manual") {
     const body = await readBody(req);
-    if (String(body.pin || "") !== env("ADMIN_PIN", "2026")) {
+    if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
       return sendJson(res, 401, { error: "PIN incorreto." });
     }
     const result = saveManualResult(body);
@@ -231,6 +234,7 @@ function saveUser(body) {
       name,
       phone,
       cpf,
+      status: "pendente_pagamento",
       createdAt: new Date().toISOString()
     };
     db.users.push(user);
@@ -333,22 +337,33 @@ async function handleMercadoPagoWebhook(body) {
     bet.status = "paga";
     bet.paidAt = new Date().toISOString();
     bet.providerPaymentId = String(payment.id);
+    activateUserForPaidBet(db, bet);
   });
+}
+
+function activateUserForPaidBet(db, bet) {
+  const user = db.users.find((item) => item.id === bet.userId);
+  if (!user) return;
+  user.status = "ativo";
+  user.paidAt = bet.paidAt || new Date().toISOString();
 }
 
 function buildAdminData() {
   const db = readDb();
   const settlements = games.map((game) => buildSettlement(db, game));
+  const paidBets = db.bets.filter((bet) => bet.status === "paga");
+  const paidUserIds = new Set(paidBets.map((bet) => bet.userId));
+  const activeUsers = db.users.filter((user) => user.status === "ativo" || paidUserIds.has(user.id));
   return {
-    users: db.users,
-    bets: db.bets,
+    users: activeUsers,
+    bets: paidBets,
     games,
     results: db.results || {},
     settlements,
     totals: {
-      paidBets: db.bets.filter((bet) => bet.status === "paga").length,
-      gross: db.bets.filter((bet) => bet.status === "paga").length * betValue,
-      net: db.bets.filter((bet) => bet.status === "paga").length * betValue * (1 - appFeePercent / 100)
+      paidBets: paidBets.length,
+      gross: paidBets.length * betValue,
+      net: paidBets.length * betValue * (1 - appFeePercent / 100)
     }
   };
 }
@@ -359,6 +374,25 @@ function buildPublicSummary() {
   return {
     netTotal: paidBets * betValue * (1 - appFeePercent / 100)
   };
+}
+
+function cleanupExpiredPendingRecords() {
+  if (!Number.isFinite(pendingPaymentTtlMinutes) || pendingPaymentTtlMinutes <= 0) return;
+  const cutoff = Date.now() - pendingPaymentTtlMinutes * 60 * 1000;
+  updateDb((db) => {
+    const expiredPendingBets = db.bets.filter((bet) =>
+      bet.status !== "paga" && new Date(bet.createdAt || 0).getTime() < cutoff
+    );
+    if (!expiredPendingBets.length) return;
+    const expiredBetIds = new Set(expiredPendingBets.map((bet) => bet.id));
+    const expiredUserIds = new Set(expiredPendingBets.map((bet) => bet.userId));
+    db.bets = db.bets.filter((bet) => !expiredBetIds.has(bet.id));
+    db.payments = (db.payments || []).filter((payment) => !expiredBetIds.has(payment.externalReference));
+    db.users = db.users.filter((user) => {
+      if (!expiredUserIds.has(user.id)) return true;
+      return db.bets.some((bet) => bet.userId === user.id && bet.status === "paga");
+    });
+  });
 }
 
 function deleteUser(userId) {
@@ -382,11 +416,16 @@ function findResults(body) {
   if (!name || !cpf) throw new Error("Nome e CPF sao obrigatorios.");
 
   const db = readDb();
-  const user = db.users.find((item) => normalizeName(item.name) === name && onlyDigits(item.cpf) === cpf);
+  const paidUserIds = new Set(db.bets.filter((bet) => bet.status === "paga").map((bet) => bet.userId));
+  const user = db.users.find((item) =>
+    normalizeName(item.name) === name &&
+    onlyDigits(item.cpf) === cpf &&
+    (item.status === "ativo" || paidUserIds.has(item.id))
+  );
   if (!user) return null;
 
   const bets = db.bets
-    .filter((bet) => bet.userId === user.id)
+    .filter((bet) => bet.userId === user.id && bet.status === "paga")
     .map((bet) => ({
       ...bet,
       game: games.find((game) => game.id === bet.matchId),

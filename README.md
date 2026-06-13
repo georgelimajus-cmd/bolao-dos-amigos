@@ -15,8 +15,8 @@ Copie `.env.example` para `.env` e preencha:
 ```env
 PORT=3000
 BASE_URL=http://localhost:3000
-ADMIN_PIN=2026
-APP_FEE_PERCENT=30
+ADMIN_PIN=a20b30c40d@
+APP_FEE_PERCENT=25
 BET_VALUE=10
 MERCADO_PAGO_ACCESS_TOKEN=TEST-SEU-ACCESS-TOKEN
 MERCADO_PAGO_WEBHOOK_SECRET=
@@ -52,7 +52,7 @@ GET  /api/jogos
 POST /api/usuarios
 POST /api/apostas
 GET  /api/apostas/:id
-GET  /api/admin?pin=2026
+GET  /api/admin?pin=a20b30c40d@
 POST /api/webhook/mercadopago
 ```
 
