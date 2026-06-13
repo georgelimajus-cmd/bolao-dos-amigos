@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bolão dos Amigos - Copa do Mundo 2026</title>
-    <link rel="stylesheet" href="styles.css?v=20260613-3" />
+    <link rel="stylesheet" href="styles.css?v=20260613-8" />
   </head>
   <body>
     <header class="topbar">
@@ -34,6 +34,7 @@
             <p><strong>2º Passo:</strong> Efetue o pagamento e aguarde a confirmação.</p>
             <p><strong>3º Passo:</strong> Faça seu palpite e boa sorte!</p>
           </div>
+          <p class="home-game-status is-hidden" id="homeGameStatus"></p>
           <p class="contact-line"><strong>Maiores informações:</strong> (99) 98495-9716 - George Lima</p>
           <article class="home-net-summary" aria-label="Total líquido do bolão">
             <span>Total líquido do bolão</span>
@@ -194,6 +195,7 @@
         <div class="admin-dashboard is-hidden" id="adminDashboard">
           <div class="admin-actions">
             <button type="button" class="success" id="adminRefresh">Atualizar dados</button>
+            <button type="button" class="danger" id="adminCloseBetting">Encerrar apostas</button>
             <button type="button" id="adminBackup">Baixar backup</button>
             <button type="button" id="adminRestore">Importar backup</button>
             <input class="is-hidden" id="adminRestoreFile" type="file" accept="application/json,.json" />
@@ -226,6 +228,6 @@
       <a href="https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums" target="_blank" rel="noreferrer">Calendário FIFA</a>
     </footer>
 
-    <script src="app.js?v=20260613-3"></script>
+    <script src="app.js?v=20260613-8"></script>
   </body>
 </html>

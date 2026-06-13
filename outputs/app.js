@@ -7,9 +7,15 @@ const MERCHANT_CITY = "SAO PAULO";
 const API_BASE = location.protocol.startsWith("http") ? "" : null;
 const HAS_API = API_BASE !== null;
 const SESSION_TIMEOUT_MS = 1 * 60 * 1000;
+const BET_CLOSE_MINUTES = 3;
 const STORAGE_KEY = "bolao-dos-amigos-state-teste-1";
 const LEGACY_STORAGE_KEYS = ["bolao-dos-amigos-state"];
 let appConfig = { betValue: ENTRY_VALUE, mercadoPagoEnabled: false };
+let serverResults = {};
+let manualClosedMatchIds = new Set();
+let currentMatchClosedFromServer = false;
+let adminCurrentMatchId = null;
+let adminCurrentMatchClosed = false;
 let paymentPoll = null;
 let sessionTimer = null;
 
@@ -44,7 +50,7 @@ const matches = [
   fixture(28, "Fase de grupos", "Grupo A", "Mexico", "Coreia do Sul", "2026-06-18", "22:00", "Estadio Akron, Zapopan"),
   fixture(29, "Fase de grupos", "Grupo D", "Estados Unidos", "Australia", "2026-06-19", "16:00", "Lumen Field, Seattle"),
   fixture(30, "Fase de grupos", "Grupo C", "Escocia", "Marrocos", "2026-06-19", "19:00", "Lincoln Financial Field, Philadelphia"),
-  fixture(31, "Fase de grupos", "Grupo C", "Brasil", "Haiti", "2026-06-19", "22:00", "Gillette Stadium, Foxborough"),
+  fixture(31, "Fase de grupos", "Grupo C", "Brasil", "Marrocos", "2026-06-19", "22:00", "Gillette Stadium, Foxborough"),
   fixture(32, "Fase de grupos", "Grupo D", "Turquia", "Paraguai", "2026-06-20", "01:00", "Levi's Stadium, Santa Clara"),
   fixture(33, "Fase de grupos", "Grupo F", "Holanda", "Suecia", "2026-06-20", "14:00", "NRG Stadium, Houston"),
   fixture(34, "Fase de grupos", "Grupo E", "Alemanha", "Costa do Marfim", "2026-06-20", "17:00", "BMO Field, Toronto"),
@@ -147,6 +153,7 @@ const els = {
   userStatus: document.querySelector("#userStatus"),
   signupSummary: document.querySelector("#signupSummary"),
   newParticipantButton: document.querySelector("#newParticipantButton"),
+  homeGameStatus: document.querySelector("#homeGameStatus"),
   netPrize: document.querySelector("#netPrize"),
   screenButtons: document.querySelectorAll("[data-screen-target]"),
   betPanel: document.querySelector("#apostas"),
@@ -173,6 +180,7 @@ const els = {
   adminStatus: document.querySelector("#adminStatus"),
   adminDashboard: document.querySelector("#adminDashboard"),
   adminRefresh: document.querySelector("#adminRefresh"),
+  adminCloseBetting: document.querySelector("#adminCloseBetting"),
   adminBackup: document.querySelector("#adminBackup"),
   adminRestore: document.querySelector("#adminRestore"),
   adminRestoreFile: document.querySelector("#adminRestoreFile"),
@@ -192,6 +200,7 @@ init();
 async function init() {
   normalizeState();
   await loadServerConfig();
+  await loadServerResults();
   hydrateUser();
   bindEvents();
   populateGames();
@@ -206,6 +215,23 @@ async function loadServerConfig() {
     appConfig = await apiGet("/api/config");
   } catch {
     appConfig = { betValue: ENTRY_VALUE, mercadoPagoEnabled: false };
+  }
+}
+
+async function loadServerResults() {
+  if (!HAS_API) return;
+  try {
+    const data = await apiGet(`/api/admin?pin=${encodeURIComponent(ADMIN_PIN)}`);
+    serverResults = {};
+    (data.settlements || []).forEach((settlement) => {
+      if (settlement.status === "finalizado") serverResults[settlement.matchId] = settlement.result || true;
+    });
+    manualClosedMatchIds = new Set(data.settings?.manualClosedMatchIds || []);
+    currentMatchClosedFromServer = Boolean(data.currentMatchClosed);
+  } catch {
+    serverResults = {};
+    manualClosedMatchIds = new Set();
+    currentMatchClosedFromServer = false;
   }
 }
 
@@ -278,6 +304,12 @@ function bindEvents() {
       return;
     }
     state.currentMatchId = state.currentMatchId || firstAvailableMatchId();
+    if (!currentMatch() || isBettingClosed(currentMatch())) {
+      els.userStatus.textContent = "O jogo começou, fim das apostas. Aguarde o resultado!";
+      renderAll();
+      showScreen("inicio");
+      return;
+    }
     state.sessionExpiresAt = null;
     saveState();
     await ensurePaymentForCurrentMatch();
@@ -290,7 +322,7 @@ function bindEvents() {
   els.betForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const match = currentMatch();
-    if (!match || !canBet(match)) return;
+    if (!match || isBettingClosed(match)) return;
     const existingBet = state.bets[match.id];
     if (!existingBet?.paid) {
       els.betStatus.textContent = "O palpite serÃ¡ liberado somente apÃ³s confirmaÃ§Ã£o do pagamento.";
@@ -391,6 +423,7 @@ function bindEvents() {
   });
 
   els.adminRefresh.addEventListener("click", renderAdminData);
+  els.adminCloseBetting.addEventListener("click", toggleAdminBettingClosed);
   els.adminBackup.addEventListener("click", downloadAdminBackup);
   els.adminRestore.addEventListener("click", () => els.adminRestoreFile.click());
   els.adminRestoreFile.addEventListener("change", restoreAdminBackup);
@@ -400,9 +433,13 @@ function bindEvents() {
     await deleteAdminUser(button.dataset.deleteUser);
   });
   els.adminBets.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-save-admin-bet]");
-    if (!button) return;
-    await saveAdminBetGuess(button.dataset.saveAdminBet);
+    const saveButton = event.target.closest("[data-save-admin-bet]");
+    if (saveButton) {
+      await saveAdminBetGuess(saveButton.dataset.saveAdminBet);
+      return;
+    }
+    const deleteButton = event.target.closest("[data-delete-bet]");
+    if (deleteButton) await deleteAdminBet(deleteButton.dataset.deleteBet);
   });
 
   els.adminLogout.addEventListener("click", () => {
@@ -424,6 +461,7 @@ function bindEvents() {
 }
 
 function renderAll() {
+  renderHomeGameStatus();
   renderStats();
   renderCadastroStep();
   renderBetStep();
@@ -437,6 +475,20 @@ function hydrateUser() {
   els.name.value = state.user.name;
   els.phone.value = state.user.phone;
   els.cpf.value = state.user.cpf;
+}
+
+function renderHomeGameStatus() {
+  const match = currentMatch();
+  if (!els.homeGameStatus || !match) return;
+  const closed = isBettingClosed(match);
+  els.homeGameStatus.classList.toggle("is-hidden", !closed);
+  els.homeGameStatus.textContent = closed
+    ? `${match.home} x ${match.away}: o jogo começou, fim das apostas. Aguarde o resultado!`
+    : "";
+  document.querySelectorAll('[data-screen-target="cadastro"]').forEach((button) => {
+    button.classList.toggle("is-hidden", closed);
+    button.disabled = closed;
+  });
 }
 
 function renderCadastroStep() {
@@ -494,6 +546,8 @@ function renderStats() {
     apiGet("/api/resumo")
       .then((data) => {
         els.netPrize.textContent = money(data.netTotal || 0);
+        currentMatchClosedFromServer = Boolean(data.currentMatchClosed);
+        renderHomeGameStatus();
       })
       .catch(() => {
         els.netPrize.textContent = money(0);
@@ -505,7 +559,7 @@ function renderStats() {
 }
 
 function populateGames() {
-  if (!state.currentMatchId) state.currentMatchId = firstAvailableMatchId() || brazilMatches[0]?.id || null;
+  state.currentMatchId = firstAvailableMatchId();
 }
 
 function renderBetStep() {
@@ -520,10 +574,12 @@ function renderBetStep() {
   const bet = state.bets[match.id];
   const paid = Boolean(bet?.paid);
   const hasGuess = bet?.home !== null && bet?.home !== undefined && bet?.away !== null && bet?.away !== undefined;
-  const locked = !canBet(match);
+  const locked = isBettingClosed(match);
   els.confirmBet.disabled = !paid || hasGuess || locked;
   els.confirmBet.textContent = hasGuess ? "Palpite jÃ¡ salvo neste jogo" : "Salvar palpite";
-  els.betStatus.textContent = !paid
+  els.betStatus.textContent = locked
+    ? "Apostas encerradas para este jogo. O prÃ³ximo jogo serÃ¡ liberado quando este resultado for finalizado."
+    : !paid
     ? "O palpite serÃ¡ liberado somente apÃ³s confirmaÃ§Ã£o do pagamento."
     : hasGuess
       ? "Palpite salvo. Boa sorte no BolÃ£o dos Amigos!"
@@ -738,6 +794,11 @@ async function ensurePaymentForCurrentMatch() {
 async function renderAdminDataFromApi() {
   try {
     const data = await apiGet(`/api/admin?pin=${encodeURIComponent(ADMIN_PIN)}`);
+    adminCurrentMatchId = data.currentMatchId || null;
+    adminCurrentMatchClosed = Boolean(data.currentMatchClosed);
+    manualClosedMatchIds = new Set(data.settings?.manualClosedMatchIds || []);
+    currentMatchClosedFromServer = Boolean(data.currentMatchClosed);
+    renderAdminCloseBettingButton(data);
     els.adminUsers.innerHTML = data.users.length
       ? data.users.map((user) => `
           <dl class="admin-list">
@@ -751,12 +812,13 @@ async function renderAdminDataFromApi() {
 
     els.adminGames.innerHTML = data.games.map((match) => {
       const bet = data.bets.find((item) => item.matchId === match.id);
+      const closed = manualClosedMatchIds.has(match.id) || (match.id === data.currentMatchId && data.currentMatchClosed);
       return `
         <div class="admin-row">
           <strong>Jogo ${match.number}: ${match.home} x ${match.away}</strong>
           <span>${formatDate(match)}</span>
           <span>${match.venue}</span>
-          <span class="badge">${bet?.status === "paga" ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
+          <span class="badge">${closed ? "Apostas encerradas" : bet?.status === "paga" ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
         </div>
       `;
     }).join("");
@@ -782,6 +844,7 @@ async function renderAdminDataFromApi() {
                 </label>
                 <button type="button" data-save-admin-bet="${escapeHtml(bet.id)}">Salvar palpite</button>
               </div>
+              <button type="button" class="danger compact-danger" data-delete-bet="${escapeHtml(bet.id)}">Excluir aposta</button>
             </div>
           `;
         }).join("")
@@ -843,6 +906,53 @@ async function deleteAdminUser(userId) {
     await renderAdminData();
     renderAll();
     els.adminStatus.textContent = "Cadastro excluÃ­do com sucesso.";
+  } catch (error) {
+    els.adminStatus.textContent = error.message;
+  }
+}
+
+function renderAdminCloseBettingButton(data) {
+  const match = data.games?.find((item) => item.id === data.currentMatchId);
+  els.adminCloseBetting.disabled = !match;
+  els.adminCloseBetting.textContent = data.currentMatchClosed ? "Reabrir apostas" : "Encerrar apostas";
+  els.adminCloseBetting.classList.toggle("success", data.currentMatchClosed);
+  els.adminCloseBetting.classList.toggle("danger", !data.currentMatchClosed);
+  els.adminCloseBetting.title = match ? `${match.home} x ${match.away}` : "Nenhum jogo atual do Brasil";
+}
+
+async function toggleAdminBettingClosed() {
+  if (!adminCurrentMatchId) {
+    els.adminStatus.textContent = "Nenhum jogo atual do Brasil encontrado.";
+    return;
+  }
+  const action = adminCurrentMatchClosed ? "reabrir" : "encerrar";
+  const confirmed = window.confirm(`${action === "encerrar" ? "Encerrar" : "Reabrir"} apostas do jogo atual do Brasil?`);
+  if (!confirmed) return;
+
+  try {
+    const path = adminCurrentMatchClosed ? "/api/admin/reabrir-apostas" : "/api/admin/encerrar-apostas";
+    await apiPost(path, {
+      pin: ADMIN_PIN,
+      matchId: adminCurrentMatchId
+    });
+    els.adminStatus.textContent = adminCurrentMatchClosed ? "Apostas reabertas." : "Apostas encerradas manualmente.";
+    await loadServerResults();
+    await renderAdminData();
+    renderAll();
+  } catch (error) {
+    els.adminStatus.textContent = error.message;
+  }
+}
+
+async function deleteAdminBet(betId) {
+  const confirmed = window.confirm("Excluir somente esta aposta? O cadastro do participante sera mantido.");
+  if (!confirmed) return;
+
+  try {
+    await apiDelete(`/api/admin/apostas/${encodeURIComponent(betId)}?pin=${encodeURIComponent(ADMIN_PIN)}`);
+    els.adminStatus.textContent = "Aposta excluida com sucesso.";
+    await renderAdminData();
+    renderAll();
   } catch (error) {
     els.adminStatus.textContent = error.message;
   }
@@ -1023,7 +1133,7 @@ function currentMatch() {
 }
 
 function pendingBet() {
-  if (state.pendingMatchId && state.bets[state.pendingMatchId]) return state.bets[state.pendingMatchId];
+  if (state.pendingMatchId === state.currentMatchId && state.bets[state.pendingMatchId]) return state.bets[state.pendingMatchId];
   const match = currentMatch();
   return match ? state.bets[match.id] : null;
 }
@@ -1076,11 +1186,19 @@ function startPaymentPolling(bet) {
 }
 
 function firstAvailableMatchId() {
-  return brazilMatches.find((match) => !state.bets[match.id]?.paid && canBet(match))?.id || null;
+  return brazilMatches.find((match) => !isMatchFinished(match.id))?.id || null;
+}
+
+function isMatchFinished(matchId) {
+  return Boolean(serverResults[matchId]);
 }
 
 function canBet(match) {
-  return minutesTo(match.startsAt) > 30;
+  return minutesTo(match.startsAt) > BET_CLOSE_MINUTES;
+}
+
+function isBettingClosed(match) {
+  return Boolean(match && (manualClosedMatchIds.has(match.id) || !canBet(match) || (currentMatch()?.id === match.id && currentMatchClosedFromServer)));
 }
 
 function minutesTo(dateString) {
@@ -1270,7 +1388,8 @@ function normalizeState() {
   state.bets = state.bets || {};
   state.pendingMatchId = state.pendingMatchId || null;
   state.lastConfirmedMatchId = state.lastConfirmedMatchId || null;
-  if (!state.currentMatchId) state.currentMatchId = firstAvailableMatchId() || brazilMatches[0]?.id || null;
+  const availableMatchId = firstAvailableMatchId();
+  if (!state.currentMatchId || state.currentMatchId !== availableMatchId) state.currentMatchId = availableMatchId;
   state.sessionExpiresAt = state.sessionExpiresAt || null;
 }
 
