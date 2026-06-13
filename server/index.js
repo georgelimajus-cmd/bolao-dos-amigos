@@ -178,6 +178,26 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/encerrar-apostas") {
+    const body = await readBody(req);
+    if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const result = setManualBettingClosed(String(body.matchId || ""), true);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/admin/reabrir-apostas") {
+    const body = await readBody(req);
+    if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const result = setManualBettingClosed(String(body.matchId || ""), false);
+    sendJson(res, 200, result);
+    return;
+  }
+
   if (req.method === "POST" && url.pathname.startsWith("/api/admin/apostas/") && url.pathname.endsWith("/palpite")) {
     const body = await readBody(req);
     if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
@@ -311,9 +331,9 @@ async function createBet(body) {
   if (!isOptionalScore(homeScore) || !isOptionalScore(awayScore)) {
     throw new Error("Placar invalido.");
   }
-  if (!canBet(match)) throw new Error("O jogo começou, fim das apostas. Aguarde o resultado!");
-
   const db = readDb();
+  if (isManualBettingClosed(db, matchId)) throw new Error("O jogo começou, fim das apostas. Aguarde o resultado!");
+  if (!canBet(match)) throw new Error("O jogo começou, fim das apostas. Aguarde o resultado!");
   if (!isCurrentBrazilMatchAvailable(db, matchId)) {
     throw new Error("Este jogo ainda nao esta liberado. As apostas seguem a sequencia dos jogos do Brasil.");
   }
@@ -441,11 +461,15 @@ function buildAdminData() {
   const paidBets = db.bets.filter((bet) => bet.status === "paga");
   const paidUserIds = new Set(paidBets.map((bet) => bet.userId));
   const activeUsers = db.users.filter((user) => user.status === "ativo" || paidUserIds.has(user.id));
+  const currentMatch = currentBrazilMatch(db);
   return {
     users: activeUsers,
     bets: paidBets,
     games,
     results: db.results || {},
+    settings: db.settings || {},
+    currentMatchId: currentMatch?.id || null,
+    currentMatchClosed: currentMatch ? isBettingClosed(db, currentMatch) : true,
     settlements,
     totals: {
       paidBets: paidBets.length,
@@ -458,8 +482,13 @@ function buildAdminData() {
 function buildPublicSummary() {
   const db = readDb();
   const paidBets = db.bets.filter((bet) => bet.status === "paga").length;
+  const currentMatch = currentBrazilMatch(db);
+  const finalSettlement = latestFinalizedBrazilSettlement(db);
   return {
-    netTotal: paidBets * betValue * (1 - appFeePercent / 100)
+    netTotal: paidBets * betValue * (1 - appFeePercent / 100),
+    currentMatchId: currentMatch?.id || null,
+    currentMatchClosed: currentMatch ? isBettingClosed(db, currentMatch) : true,
+    finalSettlement
   };
 }
 
@@ -496,6 +525,14 @@ function restoreBackup(body) {
     db.bets = mergeById(db.bets || [], incoming.bets);
     db.payments = mergeByPaymentKey(db.payments || [], incoming.payments);
     db.results = { ...(db.results || {}), ...(incoming.results || {}) };
+    db.settings = {
+      ...(db.settings || {}),
+      ...(incoming.settings || {}),
+      manualClosedMatchIds: Array.from(new Set([
+        ...((db.settings || {}).manualClosedMatchIds || []),
+        ...((incoming.settings || {}).manualClosedMatchIds || [])
+      ]))
+    };
 
     return {
       ok: true,
@@ -522,7 +559,8 @@ function normalizeBackupPayload(body) {
     users: Array.isArray(source.users) ? source.users : [],
     bets: Array.isArray(source.bets) ? source.bets : [],
     payments: Array.isArray(source.payments) ? source.payments : [],
-    results: source.results && typeof source.results === "object" ? source.results : {}
+    results: source.results && typeof source.results === "object" ? source.results : {},
+    settings: source.settings && typeof source.settings === "object" ? source.settings : {}
   };
 }
 
@@ -660,6 +698,30 @@ function buildSettlement(db, game) {
   };
 }
 
+function latestFinalizedBrazilSettlement(db) {
+  const finalizedGame = games
+    .filter((game) => game.home === "Brasil" || game.away === "Brasil")
+    .filter((game) => db.results?.[game.id]?.status === "finalizado")
+    .sort((a, b) => new Date(b.startsAt) - new Date(a.startsAt))[0];
+
+  if (!finalizedGame) return null;
+  const settlement = buildSettlement(db, finalizedGame);
+  return {
+    matchId: finalizedGame.id,
+    game: finalizedGame,
+    result: settlement.result,
+    netPot: settlement.netPot,
+    winners: settlement.winners.map((winner) => ({
+      name: winner.name,
+      homeScore: winner.homeScore,
+      awayScore: winner.awayScore
+    })),
+    winnersCount: settlement.winners.length,
+    prizePerWinner: settlement.prizePerWinner,
+    message: settlement.message
+  };
+}
+
 function isCurrentBrazilMatchAvailable(db, matchId) {
   const orderedBrazilGames = games
     .filter((game) => game.home === "Brasil" || game.away === "Brasil")
@@ -669,6 +731,42 @@ function isCurrentBrazilMatchAvailable(db, matchId) {
     return !result || result.status !== "finalizado";
   });
   return nextGame?.id === matchId;
+}
+
+function currentBrazilMatch(db) {
+  return games
+    .filter((game) => game.home === "Brasil" || game.away === "Brasil")
+    .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
+    .find((game) => {
+      const result = db.results?.[game.id];
+      return !result || result.status !== "finalizado";
+    }) || null;
+}
+
+function isManualBettingClosed(db, matchId) {
+  return Boolean(db.settings?.manualClosedMatchIds?.includes(matchId));
+}
+
+function isBettingClosed(db, match) {
+  return isManualBettingClosed(db, match.id) || !canBet(match);
+}
+
+function setManualBettingClosed(matchId, closed) {
+  if (!games.some((game) => game.id === matchId)) throw new Error("Jogo invalido.");
+  return updateDb((db) => {
+    db.settings = db.settings || {};
+    const ids = new Set(Array.isArray(db.settings.manualClosedMatchIds) ? db.settings.manualClosedMatchIds : []);
+    if (closed) ids.add(matchId);
+    else ids.delete(matchId);
+    db.settings.manualClosedMatchIds = Array.from(ids);
+    const game = games.find((item) => item.id === matchId);
+    return {
+      ok: true,
+      matchId,
+      closed: isBettingClosed(db, game),
+      manualClosedMatchIds: db.settings.manualClosedMatchIds
+    };
+  });
 }
 
 function saveManualResult(body) {
