@@ -763,10 +763,9 @@ function renderAdminGames() {
   els.adminGames.innerHTML = brazilMatches
     .map((match) => {
       const bet = state.bets[match.id];
-      const noBetLabel = !bet && ["j031", "j051"].includes(match.id) ? " (Sem aposta)" : "";
       return `
         <div class="admin-row">
-          <strong>Jogo ${match.number}: ${match.home} x ${match.away}${noBetLabel}</strong>
+          <strong>Jogo ${match.number}: ${match.home} x ${match.away}</strong>
           <span>${formatDate(match)}</span>
           <span>${match.venue}</span>
           <span class="badge">${bet?.paid ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
@@ -852,10 +851,9 @@ async function renderAdminDataFromApi() {
     els.adminGames.innerHTML = data.games.map((match) => {
       const bet = data.bets.find((item) => item.matchId === match.id);
       const closed = manualClosedMatchIds.has(match.id) || (match.id === data.currentMatchId && data.currentMatchClosed);
-      const noBetLabel = !bet && ["j031", "j051"].includes(match.id) ? " (Sem aposta)" : "";
       return `
         <div class="admin-row">
-          <strong>Jogo ${match.number}: ${match.home} x ${match.away}${noBetLabel}</strong>
+          <strong>Jogo ${match.number}: ${match.home} x ${match.away}</strong>
           <span>${formatDate(match)}</span>
           <span>${match.venue}</span>
           <span class="badge">${closed ? "Apostas encerradas" : bet?.status === "paga" ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
@@ -903,12 +901,12 @@ async function renderAdminDataFromApi() {
               <span>Valor a receber: ${money(settlement.prizePerWinner)}</span>
             </div>
           `).join("")
-        : `<p class="empty">${settlement.status === "finalizado" ? "NinguÃ©m acertou." : "Sem ganhadores enquanto o jogo nÃ£o terminar."}</p>`;
+        : `<p class="empty">${settlement.status === "finalizado" ? "Ninguém acertou." : "Sem ganhadores enquanto o jogo não terminar."}</p>`;
       return `
         <div class="admin-row">
           <strong>${match.home} x ${match.away}</strong>
           <span>Resultado: ${resultText}</span>
-          <span>Total lÃ­quido: ${money(settlement.netPot)}</span>
+          <span>Total líquido: ${money(settlement.netPot)}</span>
           <span>${settlement.message}</span>
         </div>
         ${winners}
