@@ -16,10 +16,10 @@ const games = [
     stage: "Fase de grupos",
     group: "Grupo C",
     home: "Brasil",
-    away: "Marrocos",
-    venue: "Gillette Stadium, Foxborough",
-    displayTime: "22:00",
-    startsAt: "2026-06-19T22:00:00-03:00"
+    away: "Haiti",
+    venue: "Lincoln Financial Field, Filadelfia",
+    displayTime: "21:30",
+    startsAt: "2026-06-19T21:30:00-03:00"
   },
   {
     id: "j051",
