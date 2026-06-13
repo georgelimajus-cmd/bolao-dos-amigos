@@ -1,4 +1,4 @@
-const ENTRY_VALUE = 10;
+﻿const ENTRY_VALUE = 10;
 const ADMIN_PERCENT = 0.25;
 const ADMIN_PIN = "a20b30c40d@";
 const PIX_KEY = "11999999999";
@@ -865,16 +865,53 @@ async function saveAdminBetGuess(betId) {
   }
 
   try {
-    await apiPost(`/api/admin/apostas/${encodeURIComponent(betId)}/palpite`, {
-      pin: ADMIN_PIN,
-      homeScore,
-      awayScore
-    });
+    await saveAdminGuessRequest(betId, homeScore, awayScore);
     els.adminStatus.textContent = "Palpite alterado com sucesso.";
     await renderAdminData();
+    const saved = await findAdminBet(betId);
+    if (!saved || saved.homeScore !== homeScore || saved.awayScore !== awayScore) {
+      els.adminStatus.textContent = "O servidor respondeu, mas o placar nao ficou salvo. Atualize o server/index.js no Render e faca novo deploy.";
+    }
   } catch (error) {
     els.adminStatus.textContent = error.message;
   }
+}
+
+async function saveAdminGuessRequest(betId, homeScore, awayScore) {
+  const payload = { pin: ADMIN_PIN, homeScore, awayScore };
+  try {
+    return await apiPost(`/api/admin/apostas/${encodeURIComponent(betId)}/palpite`, payload);
+  } catch (error) {
+    const fallbackErrors = ["404", "Aposta nao encontrada", "Aposta não encontrada", "Cannot POST", "Not found"];
+    if (!fallbackErrors.some((text) => error.message.includes(text))) throw error;
+    try {
+      return await apiPost("/api/admin/alterar-palpite", { ...payload, betId });
+    } catch (fallbackError) {
+      if (!fallbackErrors.some((text) => fallbackError.message.includes(text))) throw fallbackError;
+      return saveAdminGuessViaBackup(betId, homeScore, awayScore);
+    }
+  }
+}
+
+async function saveAdminGuessViaBackup(betId, homeScore, awayScore) {
+  const backup = await apiGet(`/api/admin/backup?pin=${encodeURIComponent(ADMIN_PIN)}`);
+  const data = backup.data || backup;
+  const bet = data.bets?.find((item) => item.id === betId);
+  if (!bet) throw new Error("Aposta nao encontrada no backup do servidor.");
+  if (bet.status !== "paga") throw new Error("Somente apostas pagas podem ter palpite alterado.");
+  bet.homeScore = homeScore;
+  bet.awayScore = awayScore;
+  bet.guessAt = bet.guessAt || new Date().toISOString();
+  bet.updatedByAdminAt = new Date().toISOString();
+  return apiPost("/api/admin/restaurar", {
+    pin: ADMIN_PIN,
+    data
+  });
+}
+
+async function findAdminBet(betId) {
+  const data = await apiGet(`/api/admin?pin=${encodeURIComponent(ADMIN_PIN)}`);
+  return data.bets.find((bet) => bet.id === betId);
 }
 
 function cssEscape(value) {
