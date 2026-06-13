@@ -712,7 +712,7 @@ function latestFinalizedBrazilSettlement(db) {
     result: settlement.result,
     netPot: settlement.netPot,
     winners: settlement.winners.map((winner) => ({
-      name: winner.name,
+      name: maskWinnerName(winner.name),
       homeScore: winner.homeScore,
       awayScore: winner.awayScore
     })),
@@ -720,6 +720,12 @@ function latestFinalizedBrazilSettlement(db) {
     prizePerWinner: settlement.prizePerWinner,
     message: settlement.message
   };
+}
+
+function maskWinnerName(name) {
+  const parts = String(name || "Participante").trim().split(/\s+/).filter(Boolean);
+  const visible = parts.slice(0, 2).join(" ") || "Participante";
+  return `${visible} *****`;
 }
 
 function isCurrentBrazilMatchAvailable(db, matchId) {
