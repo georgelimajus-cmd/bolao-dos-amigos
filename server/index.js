@@ -13,6 +13,7 @@ const publicDir = path.join(__dirname, "..", "outputs");
 const port = Number(env("PORT", "3000"));
 const betValue = Number(env("BET_VALUE", "10"));
 const appFeePercent = Number(env("APP_FEE_PERCENT", "25"));
+const betCloseMinutes = Number(env("BET_CLOSE_MINUTES", "3"));
 const resultsSyncMinutes = Number(env("RESULTS_SYNC_MINUTES", "10"));
 const pendingPaymentTtlMinutes = Number(env("PENDING_PAYMENT_TTL_MINUTES", "60"));
 
@@ -202,6 +203,18 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "DELETE" && url.pathname.startsWith("/api/admin/apostas/")) {
+    const pin = url.searchParams.get("pin");
+    if (pin !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const betId = decodeURIComponent(url.pathname.split("/").pop());
+    const result = deleteBet(betId);
+    if (!result.deleted) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    sendJson(res, 200, result);
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/admin/sincronizar-resultados") {
     const body = await readBody(req);
     if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
@@ -298,9 +311,12 @@ async function createBet(body) {
   if (!isOptionalScore(homeScore) || !isOptionalScore(awayScore)) {
     throw new Error("Placar invalido.");
   }
-  if (!canBet(match)) throw new Error("Apostas encerradas para este jogo.");
+  if (!canBet(match)) throw new Error("O jogo começou, fim das apostas. Aguarde o resultado!");
 
   const db = readDb();
+  if (!isCurrentBrazilMatchAvailable(db, matchId)) {
+    throw new Error("Este jogo ainda nao esta liberado. As apostas seguem a sequencia dos jogos do Brasil.");
+  }
   const user = db.users.find((item) => item.id === userId);
   if (!user) throw new Error("Usuario nao encontrado.");
   const paidBet = db.bets.find((item) => item.userId === userId && item.matchId === matchId && item.status === "paga");
@@ -545,6 +561,17 @@ function deleteUser(userId) {
   });
 }
 
+function deleteBet(betId) {
+  return updateDb((db) => {
+    const beforeBets = db.bets.length;
+    db.bets = db.bets.filter((bet) => bet.id !== betId);
+    db.payments = (db.payments || []).filter((payment) => payment.externalReference !== betId);
+    return {
+      deleted: db.bets.length < beforeBets
+    };
+  });
+}
+
 function findResults(body) {
   const name = normalizeName(body.name || body.nome);
   const cpf = onlyDigits(body.cpf);
@@ -633,6 +660,17 @@ function buildSettlement(db, game) {
   };
 }
 
+function isCurrentBrazilMatchAvailable(db, matchId) {
+  const orderedBrazilGames = games
+    .filter((game) => game.home === "Brasil" || game.away === "Brasil")
+    .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+  const nextGame = orderedBrazilGames.find((game) => {
+    const result = db.results?.[game.id];
+    return !result || result.status !== "finalizado";
+  });
+  return nextGame?.id === matchId;
+}
+
 function saveManualResult(body) {
   const matchId = String(body.matchId || "");
   const game = games.find((item) => item.id === matchId);
@@ -696,7 +734,7 @@ async function syncResultsFromSource() {
 }
 
 function canBet(match) {
-  return Math.floor((new Date(match.startsAt).getTime() - Date.now()) / 60000) > 30;
+  return Math.floor((new Date(match.startsAt).getTime() - Date.now()) / 60000) > betCloseMinutes;
 }
 
 function isOptionalScore(value) {
