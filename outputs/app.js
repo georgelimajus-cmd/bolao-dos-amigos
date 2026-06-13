@@ -504,7 +504,7 @@ function renderHomeFinalResult(settlement) {
   const resultText = `${escapeHtml(game.home)} ${settlement.result.homeScore} x ${settlement.result.awayScore} ${escapeHtml(game.away)}`;
   const winners = settlement.winners || [];
   const winnersText = winners.length
-    ? winners.map((winner) => escapeHtml(winner.name)).join(", ")
+    ? winners.map((winner) => `${escapeHtml(maskWinnerName(winner.name))} - ${money(settlement.prizePerWinner || 0)}`).join(", ")
     : "Nenhum ganhador";
   const prizeText = winners.length
     ? money(settlement.prizePerWinner || 0)
@@ -1565,6 +1565,13 @@ function buildResultsHtml(data) {
 
 function normalizeText(value) {
   return String(value || "").trim().replace(/\s+/g, " ").toLocaleLowerCase("pt-BR");
+}
+
+function maskWinnerName(name) {
+  const parts = String(name || "Participante").trim().split(/\s+/).filter(Boolean);
+  if (parts.includes("*****")) return String(name);
+  const visible = parts.slice(0, 2).join(" ") || "Participante";
+  return `${visible} *****`;
 }
 
 function onlyDigits(value) {
