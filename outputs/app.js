@@ -535,7 +535,7 @@ function renderHomeFinalResult(settlement) {
     <span>Final do jogo: Ganhador(es) e Valor !</span>
     <span>Ganhador(es): ${winnersText}</span>
     <span>Valor líquido arrecadado: ${money(settlement.netPot || 0)}</span>
-    <span>${splitText}</span>
+    <span class="${winners.length ? "" : "no-winner-alert"}">${splitText}</span>
     ${nextWindowText ? `<span>${nextWindowText}</span>` : ""}
   `;
 }

@@ -297,6 +297,12 @@ h2 {
   font-weight: 800;
 }
 
+.home-final-result .no-winner-alert {
+  color: #d60000;
+  font-size: clamp(1.05rem, 3vw, 1.45rem);
+  font-weight: 900;
+}
+
 .home-scoreboard {
   display: grid;
   grid-template-columns: 1fr auto auto auto 1fr;
