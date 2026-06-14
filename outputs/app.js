@@ -18,6 +18,9 @@ let currentMatchClosedFromServer = false;
 let nextBettingWindow = null;
 let adminCurrentMatchId = null;
 let adminCurrentMatchClosed = false;
+let adminSelectedMatchId = null;
+let adminUsersVisible = false;
+let latestAdminData = null;
 let paymentPoll = null;
 let sessionTimer = null;
 
@@ -183,11 +186,13 @@ const els = {
   adminStatus: document.querySelector("#adminStatus"),
   adminDashboard: document.querySelector("#adminDashboard"),
   adminRefresh: document.querySelector("#adminRefresh"),
+  adminShowUsers: document.querySelector("#adminShowUsers"),
   adminCloseBetting: document.querySelector("#adminCloseBetting"),
   adminBackup: document.querySelector("#adminBackup"),
   adminRestore: document.querySelector("#adminRestore"),
   adminRestoreFile: document.querySelector("#adminRestoreFile"),
   adminLogout: document.querySelector("#adminLogout"),
+  adminUsersPanel: document.querySelector("#adminUsersPanel"),
   adminUsers: document.querySelector("#adminUsers"),
   adminGames: document.querySelector("#adminGames"),
   adminBets: document.querySelector("#adminBets"),
@@ -426,6 +431,10 @@ function bindEvents() {
   });
 
   els.adminRefresh.addEventListener("click", renderAdminData);
+  els.adminShowUsers.addEventListener("click", () => {
+    adminUsersVisible = !adminUsersVisible;
+    renderAdminUsersPanel();
+  });
   els.adminCloseBetting.addEventListener("click", toggleAdminBettingClosed);
   els.adminBackup.addEventListener("click", downloadAdminBackup);
   els.adminRestore.addEventListener("click", () => els.adminRestoreFile.click());
@@ -434,6 +443,13 @@ function bindEvents() {
     const button = event.target.closest("[data-delete-user]");
     if (!button) return;
     await deleteAdminUser(button.dataset.deleteUser);
+  });
+  els.adminGames.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-admin-match]");
+    if (!button) return;
+    adminSelectedMatchId = button.dataset.adminMatch;
+    renderAdminGames();
+    renderAdminBets();
   });
   els.adminBets.addEventListener("click", async (event) => {
     const saveButton = event.target.closest("[data-save-admin-bet]");
@@ -736,7 +752,7 @@ function renderAdmin() {
   els.adminLoginForm.classList.toggle("is-hidden", unlocked);
   els.adminDashboard.classList.toggle("is-hidden", !unlocked);
   els.adminStatus.textContent = unlocked
-    ? "Acesso liberado. Dados carregados do armazenamento local deste protÃ³tipo."
+    ? ""
     : "Somente o administrador visualiza jogos, cadastro e apostas feitas.";
   if (unlocked) renderAdminData();
 }
@@ -746,10 +762,17 @@ function renderAdminData() {
     renderAdminDataFromApi();
     return;
   }
+  if (!adminSelectedMatchId) adminSelectedMatchId = brazilMatches[0]?.id || null;
   renderAdminUsers();
+  renderAdminUsersPanel();
   renderAdminGames();
   renderAdminBets();
   els.adminResults.innerHTML = `<p class="empty">Resultados, ganhadores e rateio aparecerÃ£o aqui quando houver apostas e placares finalizados.</p>`;
+}
+
+function renderAdminUsersPanel() {
+  els.adminUsersPanel.classList.toggle("is-hidden", !adminUsersVisible);
+  els.adminShowUsers.textContent = adminUsersVisible ? "Ocultar cadastros" : "Ver cadastros";
 }
 
 function renderAdminUsers() {
@@ -768,25 +791,36 @@ function renderAdminUsers() {
 }
 
 function renderAdminGames() {
-  els.adminGames.innerHTML = brazilMatches
+  const games = latestAdminData?.games || brazilMatches;
+  const bets = latestAdminData?.bets || Object.values(state.bets);
+  els.adminGames.innerHTML = games
     .map((match) => {
-      const bet = state.bets[match.id];
+      const bet = bets.find((item) => item.matchId === match.id);
+      const closed = latestAdminData
+        ? manualClosedMatchIds.has(match.id) || (match.id === latestAdminData.currentMatchId && latestAdminData.currentMatchClosed)
+        : false;
+      const active = adminSelectedMatchId === match.id;
       return `
-        <div class="admin-row">
+        <button type="button" class="admin-game-button ${active ? "is-selected" : ""}" data-admin-match="${escapeHtml(match.id)}">
           <strong>Jogo ${match.number}: ${match.home} x ${match.away}</strong>
           <span>${formatDate(match)}</span>
           <span>${match.venue}</span>
-          <span class="badge">${bet?.paid ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
-        </div>
+          <span class="badge">${closed ? "Apostas encerradas" : bet?.status === "paga" || bet?.paid ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
+        </button>
       `;
     })
     .join("");
 }
 
 function renderAdminBets() {
-  const bets = Object.values(state.bets);
+  if (latestAdminData) {
+    renderAdminBetsFromApi(latestAdminData);
+    return;
+  }
+  const selectedMatch = brazilMatches.find((item) => item.id === adminSelectedMatchId) || brazilMatches[0];
+  const bets = Object.values(state.bets).filter((bet) => bet.matchId === selectedMatch?.id);
   if (!bets.length) {
-    els.adminBets.innerHTML = `<p class="empty">Nenhuma aposta feita ainda.</p>`;
+    els.adminBets.innerHTML = `<p class="empty">Nenhuma aposta feita em ${selectedMatch ? `${escapeHtml(selectedMatch.home)} x ${escapeHtml(selectedMatch.away)}` : "este jogo"}.</p>`;
     return;
   }
   els.adminBets.innerHTML = bets
@@ -802,6 +836,40 @@ function renderAdminBets() {
       `;
     })
     .join("");
+}
+
+function renderAdminBetsFromApi(data) {
+  const selectedMatch = data.games.find((item) => item.id === adminSelectedMatchId) || data.games[0];
+  const bets = data.bets.filter((bet) => bet.matchId === selectedMatch?.id);
+  if (!bets.length) {
+    els.adminBets.innerHTML = `<p class="empty">Nenhuma aposta feita em ${selectedMatch ? `${escapeHtml(selectedMatch.home)} x ${escapeHtml(selectedMatch.away)}` : "este jogo"}.</p>`;
+    return;
+  }
+
+  els.adminBets.innerHTML = bets.map((bet) => {
+    const match = data.games.find((item) => item.id === bet.matchId);
+    const user = data.users.find((item) => item.id === bet.userId);
+    return `
+      <div class="admin-row">
+        <strong>${match.home} ${bet.homeScore} x ${bet.awayScore} ${match.away}</strong>
+        <span>Participante: ${user ? escapeHtml(user.name) : "-"}</span>
+        <span>Pedido: ${escapeHtml(bet.id)}</span>
+        <span class="badge">${bet.status === "paga" ? "Pago" : "Aguardando pagamento"}</span>
+        <div class="admin-bet-edit" data-admin-bet-form="${escapeHtml(bet.id)}">
+          <label>
+            Brasil
+            <input type="number" min="0" step="1" inputmode="numeric" data-admin-home-score value="${Number.isInteger(bet.homeScore) ? bet.homeScore : ""}" aria-label="Placar do Brasil">
+          </label>
+          <label>
+            ${escapeHtml(match.away)}
+            <input type="number" min="0" step="1" inputmode="numeric" data-admin-away-score value="${Number.isInteger(bet.awayScore) ? bet.awayScore : ""}" aria-label="Placar do adversário">
+          </label>
+          <button type="button" data-save-admin-bet="${escapeHtml(bet.id)}">Salvar palpite</button>
+        </div>
+        <button type="button" class="danger compact-danger" data-delete-bet="${escapeHtml(bet.id)}">Excluir aposta</button>
+      </div>
+    `;
+  }).join("");
 }
 
 async function ensurePaymentForCurrentMatch() {
@@ -840,10 +908,15 @@ async function renderAdminDataFromApi() {
   try {
     const data = await apiGet(`/api/admin?pin=${encodeURIComponent(ADMIN_PIN)}`);
     data.games = (data.games || []).map(normalizeGameDisplay);
+    latestAdminData = data;
     adminCurrentMatchId = data.currentMatchId || null;
     adminCurrentMatchClosed = Boolean(data.currentMatchClosed);
     manualClosedMatchIds = new Set(data.settings?.manualClosedMatchIds || []);
     currentMatchClosedFromServer = Boolean(data.currentMatchClosed);
+    if (!adminSelectedMatchId || !data.games.some((match) => match.id === adminSelectedMatchId)) {
+      const gameWithBets = data.games.find((match) => data.bets.some((bet) => bet.matchId === match.id));
+      adminSelectedMatchId = gameWithBets?.id || data.currentMatchId || data.games[0]?.id || null;
+    }
     renderAdminCloseBettingButton(data);
     els.adminUsers.innerHTML = data.users.length
       ? data.users.map((user) => `
@@ -855,46 +928,10 @@ async function renderAdminDataFromApi() {
           <button type="button" class="danger" data-delete-user="${escapeHtml(user.id)}">Excluir cadastro</button>
         `).join("")
       : `<p class="empty">Nenhum cadastro realizado ainda.</p>`;
+    renderAdminUsersPanel();
 
-    els.adminGames.innerHTML = data.games.map((match) => {
-      const bet = data.bets.find((item) => item.matchId === match.id);
-      const closed = manualClosedMatchIds.has(match.id) || (match.id === data.currentMatchId && data.currentMatchClosed);
-      return `
-        <div class="admin-row">
-          <strong>Jogo ${match.number}: ${match.home} x ${match.away}</strong>
-          <span>${formatDate(match)}</span>
-          <span>${match.venue}</span>
-          <span class="badge">${closed ? "Apostas encerradas" : bet?.status === "paga" ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
-        </div>
-      `;
-    }).join("");
-
-    els.adminBets.innerHTML = data.bets.length
-      ? data.bets.map((bet) => {
-          const match = data.games.find((item) => item.id === bet.matchId);
-          const user = data.users.find((item) => item.id === bet.userId);
-          return `
-            <div class="admin-row">
-              <strong>${match.home} ${bet.homeScore} x ${bet.awayScore} ${match.away}</strong>
-              <span>Participante: ${user ? escapeHtml(user.name) : "-"}</span>
-              <span>Pedido: ${escapeHtml(bet.id)}</span>
-              <span class="badge">${bet.status === "paga" ? "Pago" : "Aguardando pagamento"}</span>
-              <div class="admin-bet-edit" data-admin-bet-form="${escapeHtml(bet.id)}">
-                <label>
-                  Brasil
-                  <input type="number" min="0" step="1" inputmode="numeric" data-admin-home-score value="${Number.isInteger(bet.homeScore) ? bet.homeScore : ""}" aria-label="Placar do Brasil">
-                </label>
-                <label>
-                  ${escapeHtml(match.away)}
-                  <input type="number" min="0" step="1" inputmode="numeric" data-admin-away-score value="${Number.isInteger(bet.awayScore) ? bet.awayScore : ""}" aria-label="Placar do adversÃ¡rio">
-                </label>
-                <button type="button" data-save-admin-bet="${escapeHtml(bet.id)}">Salvar palpite</button>
-              </div>
-              <button type="button" class="danger compact-danger" data-delete-bet="${escapeHtml(bet.id)}">Excluir aposta</button>
-            </div>
-          `;
-        }).join("")
-      : `<p class="empty">Nenhuma aposta feita ainda.</p>`;
+    renderAdminGames();
+    renderAdminBetsFromApi(data);
 
     els.adminResults.innerHTML = data.settlements.map((settlement) => {
       const match = data.games.find((item) => item.id === settlement.matchId);

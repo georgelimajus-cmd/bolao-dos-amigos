@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bolão dos Amigos - Copa do Mundo 2026</title>
-    <link rel="stylesheet" href="styles.css?v=20260614-3" />
+    <link rel="stylesheet" href="styles.css?v=20260614-4" />
   </head>
   <body>
     <header class="topbar">
@@ -201,6 +201,7 @@
         <div class="admin-dashboard is-hidden" id="adminDashboard">
           <div class="admin-actions">
             <button type="button" class="success" id="adminRefresh">Atualizar dados</button>
+            <button type="button" id="adminShowUsers">Ver cadastros</button>
             <button type="button" class="danger" id="adminCloseBetting">Encerrar apostas</button>
             <button type="button" id="adminBackup">Baixar backup</button>
             <button type="button" id="adminRestore">Importar backup</button>
@@ -208,15 +209,15 @@
             <button type="button" id="adminLogout">Sair do admin</button>
           </div>
           <div class="admin-grid">
-            <article class="admin-card">
-              <h3>Cadastro</h3>
+            <article class="admin-card admin-card-wide is-hidden" id="adminUsersPanel">
+              <h3>Cadastros</h3>
               <div id="adminUsers"></div>
             </article>
             <article class="admin-card">
               <h3>Jogos do Brasil</h3>
               <div id="adminGames"></div>
             </article>
-            <article class="admin-card admin-card-wide">
+            <article class="admin-card">
               <h3>Apostas feitas</h3>
               <div id="adminBets"></div>
             </article>
@@ -234,6 +235,6 @@
       <a href="https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums" target="_blank" rel="noreferrer">Calendário FIFA</a>
     </footer>
 
-    <script src="app.js?v=20260614-3"></script>
+    <script src="app.js?v=20260614-4"></script>
   </body>
 </html>
