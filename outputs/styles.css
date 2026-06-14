@@ -238,6 +238,31 @@ h2 {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.home-next-game {
+  display: grid;
+  gap: 0.18rem;
+  max-width: 32rem;
+  margin: 0.75rem auto 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid rgba(17, 144, 79, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #173326;
+  text-align: center;
+}
+
+.home-next-game strong {
+  color: var(--green-dark);
+  font-size: clamp(1rem, 2.7vw, 1.35rem);
+  font-weight: 900;
+}
+
+.home-next-game span {
+  color: #263d30;
+  font-size: clamp(0.95rem, 2.2vw, 1.1rem);
+  font-weight: 800;
+}
+
 .home-game-status {
   margin: 0.75rem 0 0;
   padding: 0.9rem 1rem;
