@@ -509,17 +509,11 @@ function renderHomeFinalResult(settlement) {
   const winnersText = winners.length
     ? winners.map((winner) => `${escapeHtml(maskWinnerName(winner.name))} - ${money(settlement.prizePerWinner || 0)}`).join(", ")
     : "Nenhum ganhador";
-  const prizeText = winners.length
-    ? money(settlement.prizePerWinner || 0)
-    : money(0);
   const splitText = winners.length > 1
     ? `Valor dividido entre ${winners.length} ganhadores.`
     : winners.length === 1
       ? "Valor para o ganhador."
       : "Ninguém acertou o placar. O valor líquido arrecadado irá para o próximo jogo.";
-  const nextWindowText = nextBettingWindow
-    ? "A partir de amanhã as apostas para o próximo jogo do Brasil estarão abertas, das 8h até 5 minutos antes do início do Jogo 31: Brasil x Haiti - 19 de jun. de 2026 - 21:30 BRT."
-    : "";
 
   els.homeFinalResult.classList.remove("is-hidden");
   els.homeFinalResult.innerHTML = `
@@ -531,12 +525,10 @@ function renderHomeFinalResult(settlement) {
       <strong>${settlement.result.awayScore}</strong>
       <div class="score-team"><span class="flag">🇲🇦</span><span>Marrocos</span></div>
     </div>
-    <span>Fase de grupos · Grupo C · Encerrado</span>
-    <span>Final do jogo: Ganhador(es) e Valor !</span>
     <span>Ganhador(es): ${winnersText}</span>
     <span>Valor líquido arrecadado: ${money(settlement.netPot || 0)}</span>
     <span class="${winners.length ? "" : "no-winner-alert"}">${splitText}</span>
-    ${nextWindowText ? `<span>${nextWindowText}</span>` : ""}
+    <span>Faça seu cadastro e dê seu palpite. Valor R$ 10,00.</span>
   `;
 }
 
