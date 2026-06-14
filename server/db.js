@@ -132,6 +132,19 @@ function ensureRestoredSeedData(db) {
     changed = true;
   }
 
+  if (!db.settings.finalizedJ006BrasilMarrocos) {
+    db.results.j006 = {
+      matchId: "j006",
+      homeScore: 1,
+      awayScore: 1,
+      status: "finalizado",
+      source: "manual_admin",
+      updatedAt: new Date().toISOString()
+    };
+    db.settings.finalizedJ006BrasilMarrocos = true;
+    changed = true;
+  }
+
   for (const user of restoredSeedData.users) {
     if (!db.users.some((item) => item.id === user.id)) {
       db.users.push({ ...user });

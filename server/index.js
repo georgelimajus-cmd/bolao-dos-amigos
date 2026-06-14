@@ -1,4 +1,4 @@
-const http = require("node:http");
+﻿const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -13,7 +13,7 @@ const publicDir = path.join(__dirname, "..", "outputs");
 const port = Number(env("PORT", "3000"));
 const betValue = Number(env("BET_VALUE", "10"));
 const appFeePercent = Number(env("APP_FEE_PERCENT", "25"));
-const betCloseMinutes = Number(env("BET_CLOSE_MINUTES", "3"));
+const betCloseMinutes = Number(env("BET_CLOSE_MINUTES", "5"));
 const resultsSyncMinutes = Number(env("RESULTS_SYNC_MINUTES", "10"));
 const pendingPaymentTtlMinutes = Number(env("PENDING_PAYMENT_TTL_MINUTES", "60"));
 
@@ -332,8 +332,9 @@ async function createBet(body) {
     throw new Error("Placar invalido.");
   }
   const db = readDb();
-  if (isManualBettingClosed(db, matchId)) throw new Error("O jogo começou, fim das apostas. Aguarde o resultado!");
-  if (!canBet(match)) throw new Error("O jogo começou, fim das apostas. Aguarde o resultado!");
+  if (isManualBettingClosed(db, matchId)) throw new Error("O jogo comeÃ§ou, fim das apostas. Aguarde o resultado!");
+  if (!isBettingOpen(match)) throw new Error("As apostas para este jogo ainda nao foram abertas.");
+  if (!canBet(match)) throw new Error("O jogo comeÃ§ou, fim das apostas. Aguarde o resultado!");
   if (!isCurrentBrazilMatchAvailable(db, matchId)) {
     throw new Error("Este jogo ainda nao esta liberado. As apostas seguem a sequencia dos jogos do Brasil.");
   }
@@ -488,7 +489,8 @@ function buildPublicSummary() {
     netTotal: paidBets * betValue * (1 - appFeePercent / 100),
     currentMatchId: currentMatch?.id || null,
     currentMatchClosed: currentMatch ? isBettingClosed(db, currentMatch) : true,
-    finalSettlement
+    finalSettlement,
+    nextBettingWindow: currentMatch ? bettingWindowForMatch(currentMatch) : null
   };
 }
 
@@ -637,7 +639,7 @@ function findResults(body) {
 
 function buildUserBetSettlement(db, bet) {
   const game = games.find((item) => item.id === bet.matchId);
-  if (!game) return { status: "jogo_nao_encontrado", message: "Jogo não encontrado." };
+  if (!game) return { status: "jogo_nao_encontrado", message: "Jogo nÃ£o encontrado." };
   const settlement = buildSettlement(db, game);
   if (settlement.status !== "finalizado") {
     return {
@@ -651,14 +653,16 @@ function buildUserBetSettlement(db, bet) {
     status: winner ? "ganhou" : "nao_ganhou",
     result: settlement.result,
     prize: winner ? settlement.prizePerWinner : 0,
-    message: winner ? "Você acertou o placar." : "Você não acertou o placar."
+    message: winner ? "VocÃª acertou o placar." : "VocÃª nÃ£o acertou o placar."
   };
 }
 
 function buildSettlement(db, game) {
   const result = db.results?.[game.id];
   const paidBets = db.bets.filter((bet) => bet.matchId === game.id && bet.status === "paga");
-  const netPot = paidBets.length * betValue * (1 - appFeePercent / 100);
+  const baseNetPot = paidBets.length * betValue * (1 - appFeePercent / 100);
+  const carryover = carryoverNetPotForGame(db, game);
+  const netPot = baseNetPot + carryover;
 
   if (!result || result.status !== "finalizado") {
     return {
@@ -666,6 +670,7 @@ function buildSettlement(db, game) {
       status: "aguardando_jogo",
       message: "Aguardando o jogo terminar.",
       paidBets: paidBets.length,
+      carryover,
       netPot,
       winners: [],
       prizePerWinner: 0
@@ -691,11 +696,34 @@ function buildSettlement(db, game) {
     status: "finalizado",
     result,
     paidBets: paidBets.length,
+    carryover,
     netPot,
     winners,
     prizePerWinner: winners.length ? netPot / winners.length : 0,
-    message: winners.length ? "Resultado calculado." : "Ninguém acertou o placar."
+    message: winners.length ? "Resultado calculado." : "Ninguém acertou o placar. O valor líquido arrecadado irá para o próximo jogo."
   };
+}
+
+function carryoverNetPotForGame(db, game) {
+  const orderedBrazilGames = games
+    .filter((item) => item.home === "Brasil" || item.away === "Brasil")
+    .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+  const gameIndex = orderedBrazilGames.findIndex((item) => item.id === game.id);
+  if (gameIndex <= 0) return 0;
+
+  let carryover = 0;
+  for (const previousGame of orderedBrazilGames.slice(0, gameIndex)) {
+    const result = db.results?.[previousGame.id];
+    if (!result || result.status !== "finalizado") break;
+    const paidBets = db.bets.filter((bet) => bet.matchId === previousGame.id && bet.status === "paga");
+    const previousNetPot = paidBets.length * betValue * (1 - appFeePercent / 100);
+    const winners = paidBets.filter((bet) =>
+      Number(bet.homeScore) === Number(result.homeScore) &&
+      Number(bet.awayScore) === Number(result.awayScore)
+    );
+    carryover = winners.length ? 0 : carryover + previousNetPot;
+  }
+  return carryover;
 }
 
 function latestFinalizedBrazilSettlement(db) {
@@ -754,7 +782,23 @@ function isManualBettingClosed(db, matchId) {
 }
 
 function isBettingClosed(db, match) {
-  return isManualBettingClosed(db, match.id) || !canBet(match);
+  return isManualBettingClosed(db, match.id) || !isBettingOpen(match) || !canBet(match);
+}
+
+function bettingWindowForMatch(match) {
+  return {
+    opensAt: bettingOpenAt(match).toISOString(),
+    closesMinutesBefore: betCloseMinutes
+  };
+}
+
+function bettingOpenAt(match) {
+  if (match.id === "j031") return new Date("2026-06-14T08:00:00-03:00");
+  return new Date(0);
+}
+
+function isBettingOpen(match) {
+  return Date.now() >= bettingOpenAt(match).getTime();
 }
 
 function setManualBettingClosed(matchId, closed) {
@@ -778,11 +822,11 @@ function setManualBettingClosed(matchId, closed) {
 function saveManualResult(body) {
   const matchId = String(body.matchId || "");
   const game = games.find((item) => item.id === matchId);
-  if (!game) throw new Error("Jogo inválido.");
+  if (!game) throw new Error("Jogo invÃ¡lido.");
   const homeScore = Number(body.homeScore);
   const awayScore = Number(body.awayScore);
   if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
-    throw new Error("Placar inválido.");
+    throw new Error("Placar invÃ¡lido.");
   }
 
   return updateDb((db) => {
@@ -804,7 +848,7 @@ async function syncResultsFromSource() {
   if (!sourceUrl) {
     return {
       updated: 0,
-      message: "RESULTS_SOURCE_URL não configurada. Configure uma API oficial/provedor para sincronização automática."
+      message: "RESULTS_SOURCE_URL nÃ£o configurada. Configure uma API oficial/provedor para sincronizaÃ§Ã£o automÃ¡tica."
     };
   }
 
