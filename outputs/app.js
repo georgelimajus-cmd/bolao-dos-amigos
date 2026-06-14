@@ -7,13 +7,15 @@ const MERCHANT_CITY = "SAO PAULO";
 const API_BASE = location.protocol.startsWith("http") ? "" : null;
 const HAS_API = API_BASE !== null;
 const SESSION_TIMEOUT_MS = 1 * 60 * 1000;
-const BET_CLOSE_MINUTES = 3;
+const BET_CLOSE_MINUTES = 5;
+const J031_OPEN_AT = "2026-06-14T08:00:00-03:00";
 const STORAGE_KEY = "bolao-dos-amigos-state-teste-1";
 const LEGACY_STORAGE_KEYS = ["bolao-dos-amigos-state"];
 let appConfig = { betValue: ENTRY_VALUE, mercadoPagoEnabled: false };
 let serverResults = {};
 let manualClosedMatchIds = new Set();
 let currentMatchClosedFromServer = false;
+let nextBettingWindow = null;
 let adminCurrentMatchId = null;
 let adminCurrentMatchClosed = false;
 let paymentPoll = null;
@@ -484,7 +486,9 @@ function renderHomeGameStatus() {
   const closed = isBettingClosed(match);
   els.homeGameStatus.classList.toggle("is-hidden", !closed);
   els.homeGameStatus.textContent = closed
-    ? "Brasil x Marrocos: o jogo começou, fim das apostas. Aguarde o resultado!"
+    ? match.id === "j031" && !isBettingOpen(match)
+      ? "Próximo jogo: Brasil x Haiti. Apostas abertas a partir de amanhã, às 8h."
+      : "Brasil x Marrocos: o jogo começou, fim das apostas. Aguarde o resultado!"
     : "";
   document.querySelectorAll('[data-screen-target="cadastro"]').forEach((button) => {
     button.classList.toggle("is-hidden", closed);
@@ -501,7 +505,6 @@ function renderHomeFinalResult(settlement) {
   }
 
   const game = settlement.game || {};
-  const resultText = `${escapeHtml(game.home)} ${settlement.result.homeScore} x ${settlement.result.awayScore} ${escapeHtml(game.away)}`;
   const winners = settlement.winners || [];
   const winnersText = winners.length
     ? winners.map((winner) => `${escapeHtml(maskWinnerName(winner.name))} - ${money(settlement.prizePerWinner || 0)}`).join(", ")
@@ -513,15 +516,27 @@ function renderHomeFinalResult(settlement) {
     ? `Valor dividido entre ${winners.length} ganhadores.`
     : winners.length === 1
       ? "Valor para o ganhador."
-      : "Ninguém acertou o placar.";
+      : "Ninguém acertou o placar. O valor líquido arrecadado irá para o próximo jogo.";
+  const nextWindowText = nextBettingWindow
+    ? "A partir de amanhã as apostas para o próximo jogo do Brasil estarão abertas, das 8h até 5 minutos antes do início do Jogo 31: Brasil x Haiti - 19 de jun. de 2026 - 21:30 BRT."
+    : "";
 
   els.homeFinalResult.classList.remove("is-hidden");
   els.homeFinalResult.innerHTML = `
-    <strong>Final do jogo: Ganhador(es) e Valor !</strong>
-    <span>Resultado: ${resultText}</span>
+    <strong>Brasil x Marrocos</strong>
+    <div class="home-scoreboard">
+      <div class="score-team"><span class="flag">🇧🇷</span><span>Brasil</span></div>
+      <strong>${settlement.result.homeScore}</strong>
+      <span class="score-separator">×</span>
+      <strong>${settlement.result.awayScore}</strong>
+      <div class="score-team"><span class="flag">🇲🇦</span><span>Marrocos</span></div>
+    </div>
+    <span>Fase de grupos · Grupo C · Encerrado</span>
+    <span>Final do jogo: Ganhador(es) e Valor !</span>
     <span>Ganhador(es): ${winnersText}</span>
-    <span>Valor a receber: ${prizeText}</span>
+    <span>Valor líquido arrecadado: ${money(settlement.netPot || 0)}</span>
     <span>${splitText}</span>
+    ${nextWindowText ? `<span>${nextWindowText}</span>` : ""}
   `;
 }
 
@@ -581,6 +596,7 @@ function renderStats() {
       .then((data) => {
         els.netPrize.textContent = money(data.netTotal || 0);
         currentMatchClosedFromServer = Boolean(data.currentMatchClosed);
+        nextBettingWindow = data.nextBettingWindow || null;
         renderHomeFinalResult(data.finalSettlement);
         renderHomeGameStatus();
       })
@@ -1248,7 +1264,16 @@ function canBet(match) {
 }
 
 function isBettingClosed(match) {
-  return Boolean(match && (manualClosedMatchIds.has(match.id) || !canBet(match) || (currentMatch()?.id === match.id && currentMatchClosedFromServer)));
+  return Boolean(match && (manualClosedMatchIds.has(match.id) || !isBettingOpen(match) || !canBet(match) || (currentMatch()?.id === match.id && currentMatchClosedFromServer)));
+}
+
+function bettingOpenAt(match) {
+  if (match?.id === "j031") return new Date(J031_OPEN_AT);
+  return new Date(0);
+}
+
+function isBettingOpen(match) {
+  return Date.now() >= bettingOpenAt(match).getTime();
 }
 
 function minutesTo(dateString) {

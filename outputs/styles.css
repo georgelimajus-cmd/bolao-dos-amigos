@@ -297,6 +297,42 @@ h2 {
   font-weight: 800;
 }
 
+.home-scoreboard {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto 1fr;
+  align-items: center;
+  gap: clamp(0.7rem, 2vw, 1.4rem);
+  padding: 0.9rem 0;
+}
+
+.home-scoreboard > strong {
+  color: #111827;
+  font-size: clamp(2rem, 8vw, 3rem);
+  line-height: 1;
+}
+
+.score-separator {
+  color: #526070;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  font-weight: 900;
+}
+
+.score-team {
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+}
+
+.score-team .flag {
+  display: grid;
+  width: 2.8rem;
+  height: 2.8rem;
+  place-items: center;
+  border-radius: 6px;
+  background: #f3f6f4;
+  font-size: 2rem;
+}
+
 .hero-signup {
   margin-bottom: 0;
   border-color: rgba(255, 255, 255, 0.7);
