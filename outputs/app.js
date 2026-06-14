@@ -161,6 +161,7 @@ const els = {
   homeGameStatus: document.querySelector("#homeGameStatus"),
   homeFinalResult: document.querySelector("#homeFinalResult"),
   netPrize: document.querySelector("#netPrize"),
+  shareBolao: document.querySelector("#shareBolao"),
   screenButtons: document.querySelectorAll("[data-screen-target]"),
   betPanel: document.querySelector("#apostas"),
   betForm: document.querySelector("#betForm"),
@@ -283,6 +284,8 @@ function bindEvents() {
       showScreen(target);
     });
   });
+
+  els.shareBolao.addEventListener("click", shareBolaoLink);
 
   els.signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -477,6 +480,31 @@ function bindEvents() {
   });
 
   els.newParticipantButton.addEventListener("click", startNewParticipant);
+}
+
+async function shareBolaoLink() {
+  const shareUrl = location.hostname === "localhost" || location.hostname === "127.0.0.1"
+    ? "https://bolao-dos-amigos.onrender.com"
+    : location.href.split("#")[0];
+  const title = "Bolão dos Amigos";
+  const text = "Participe do Bolão dos Amigos - Copa do Mundo 2026. Faça seu cadastro e dê seu palpite. Valor R$ 10,00.";
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url: shareUrl });
+      return;
+    } catch (error) {
+      if (error.name === "AbortError") return;
+    }
+  }
+
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${text} ${shareUrl}`)}`;
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+  } catch {
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+  }
 }
 
 function renderAll() {

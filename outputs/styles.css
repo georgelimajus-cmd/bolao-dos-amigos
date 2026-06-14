@@ -642,6 +642,11 @@ select:focus {
   text-decoration: none;
 }
 
+.button-row .share-button {
+  background: #ffd438;
+  color: #123b22;
+}
+
 button:hover {
   transform: translateY(-1px);
 }
