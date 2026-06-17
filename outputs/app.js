@@ -542,38 +542,8 @@ function renderHomeGameStatus() {
 
 function renderHomeFinalResult(settlement) {
   if (!els.homeFinalResult) return;
-  if (!settlement?.result) {
-    els.homeFinalResult.classList.add("is-hidden");
-    els.homeFinalResult.innerHTML = "";
-    return;
-  }
-
-  const game = settlement.game || {};
-  const winners = settlement.winners || [];
-  const winnersText = winners.length
-    ? winners.map((winner) => `${escapeHtml(maskWinnerName(winner.name))} - ${money(settlement.prizePerWinner || 0)}`).join(", ")
-    : "Nenhum ganhador";
-  const splitText = winners.length > 1
-    ? `Valor dividido entre ${winners.length} ganhadores.`
-    : winners.length === 1
-      ? "Valor para o ganhador."
-      : "Ninguém acertou o placar. O valor líquido arrecadado irá para o próximo jogo.";
-
-  els.homeFinalResult.classList.remove("is-hidden");
-  els.homeFinalResult.innerHTML = `
-    <strong>Brasil x Marrocos</strong>
-    <div class="home-scoreboard">
-      <div class="score-team"><span class="flag">🇧🇷</span><span>Brasil</span></div>
-      <strong>${settlement.result.homeScore}</strong>
-      <span class="score-separator">×</span>
-      <strong>${settlement.result.awayScore}</strong>
-      <div class="score-team"><span class="flag">🇲🇦</span><span>Marrocos</span></div>
-    </div>
-    <span>Ganhador(es): ${winnersText}</span>
-    <span>Valor líquido arrecadado: ${money(settlement.netPot || 0)}</span>
-    <span class="${winners.length ? "" : "no-winner-alert"}">${splitText}</span>
-    <span>Faça seu cadastro e dê seu palpite. Valor R$ 10,00.</span>
-  `;
+  els.homeFinalResult.classList.add("is-hidden");
+  els.homeFinalResult.innerHTML = "";
 }
 
 function renderCadastroStep() {
