@@ -86,8 +86,8 @@ async function handleApi(req, res) {
 
   if (req.method === "POST" && url.pathname === "/api/usuarios") {
     const body = await readBody(req);
-    const user = saveUser(body);
-    sendJson(res, 200, { user });
+    const result = saveUser(body);
+    sendJson(res, 200, result);
     return;
   }
 
@@ -316,7 +316,7 @@ function saveUser(body) {
       user.name = name;
       user.phone = phone;
       user.cpf = cpf;
-      return user;
+      return { user, alreadyExists: true };
     }
     user = {
       id: randomId("usr"),
@@ -327,15 +327,15 @@ function saveUser(body) {
       createdAt: new Date().toISOString()
     };
     db.users.push(user);
-    return user;
+    return { user, alreadyExists: false };
   });
 }
 
 async function createBet(body) {
   const userId = String(body.userId || body.usuario_id || "");
   const matchId = String(body.matchId || body.jogo_id || "");
-  const homeScore = body.homeScore ?? body.placar_casa;
-  const awayScore = body.awayScore ?? body.placar_fora;
+  const homeScore = body.homeScore ? body.placar_casa;
+  const awayScore = body.awayScore ? body.placar_fora;
   const match = games.find((item) => item.id === matchId);
   if (!match) throw new Error("Jogo invalido.");
   if (!isOptionalScore(homeScore) || !isOptionalScore(awayScore)) {
@@ -427,8 +427,8 @@ function updateGuessByAdmin(betId, body) {
 }
 
 function parseRequiredScore(body) {
-  const homeRaw = body.homeScore ?? body.placar_casa;
-  const awayRaw = body.awayScore ?? body.placar_fora;
+  const homeRaw = body.homeScore ? body.placar_casa;
+  const awayRaw = body.awayScore ? body.placar_fora;
   if (homeRaw === undefined || homeRaw === null || homeRaw === "" || awayRaw === undefined || awayRaw === null || awayRaw === "") {
     throw new Error("Digite o palpite completo para finalizar a aposta.");
   }
@@ -920,8 +920,8 @@ async function syncResultsFromSource() {
       const matchId = String(item.matchId || item.id || "");
       if (!games.some((game) => game.id === matchId)) continue;
       if (item.status !== "finalizado" && item.status !== "finished") continue;
-      const homeScore = Number(item.homeScore ?? item.home_score);
-      const awayScore = Number(item.awayScore ?? item.away_score);
+      const homeScore = Number(item.homeScore ? item.home_score);
+      const awayScore = Number(item.awayScore ? item.away_score);
       if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) continue;
       db.results[matchId] = {
         matchId,
