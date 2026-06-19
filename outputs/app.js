@@ -305,7 +305,7 @@ function bindEvents() {
       return;
     }
     if (!isValidPhone(user.phone)) {
-      els.userStatus.textContent = "Informe um nÃºmero de celular vÃ¡lido com DDD.";
+      els.userStatus.textContent = "Informe um número de celular válido com DDD.";
       return;
     }
     if (normalizeText(user.name).split(" ").length < 2) {
@@ -361,7 +361,7 @@ function bindEvents() {
     if (!match || isBettingClosed(match)) return;
     const existingBet = state.bets[match.id];
     if (!existingBet?.paid) {
-      els.betStatus.textContent = "O palpite serÃ¡ liberado somente apÃ³s confirmaÃ§Ã£o do pagamento.";
+      els.betStatus.textContent = "O palpite será liberado somente após confirmação do pagamento.";
       return;
     }
 
@@ -378,7 +378,7 @@ function bindEvents() {
     const home = Number(homeRaw);
     const away = Number(awayRaw);
     if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
-      els.betStatus.textContent = "Informe um placar vÃ¡lido para finalizar a aposta.";
+      els.betStatus.textContent = "Informe um placar válido para finalizar a aposta.";
       return;
     }
     try {
@@ -580,11 +580,11 @@ function renderCadastroStep() {
   els.name.disabled = hasUser;
   els.phone.disabled = hasUser;
   els.cpf.disabled = hasUser;
-  els.signupButton.textContent = hasUser ? "Cadastro jÃ¡ realizado" : "Continuar para aposta";
+  els.signupButton.textContent = hasUser ? "Cadastro já realizado" : "Continuar para aposta";
   els.signupButton.disabled = hasUser;
   els.userStatus.textContent = hasUser
-    ? `Cadastro salvo para ${state.user.name}. VocÃª pode usar este cadastro para apostar em outros jogos.`
-    : "FaÃ§a seu cadastro uma Ãºnica vez para apostar nos jogos do Brasil.";
+    ? `Cadastro salvo para ${state.user.name}. Você pode usar este cadastro para apostar em outros jogos.`
+    : "Faça seu cadastro uma única vez para apostar nos jogos do Brasil.";
   renderSignupSummary();
 }
 
@@ -695,7 +695,7 @@ function renderBetStep() {
   if (!state.user) return;
   const match = currentMatch();
   if (!match) {
-    els.singleMatch.innerHTML = `<p class="empty">Nenhum jogo do Brasil disponÃ­vel.</p>`;
+    els.singleMatch.innerHTML = `<p class="empty">Nenhum jogo do Brasil disponível.</p>`;
     els.confirmBet.disabled = true;
     return;
   }
@@ -705,13 +705,13 @@ function renderBetStep() {
   const hasGuess = bet?.home !== null && bet?.home !== undefined && bet?.away !== null && bet?.away !== undefined;
   const locked = isBettingClosed(match);
   els.confirmBet.disabled = !paid || hasGuess || locked;
-  els.confirmBet.textContent = hasGuess ? "Palpite jÃ¡ salvo neste jogo" : "Salvar palpite";
+  els.confirmBet.textContent = hasGuess ? "Palpite já salvo neste jogo" : "Salvar palpite";
   els.betStatus.textContent = locked
-    ? "Apostas encerradas para este jogo. O prÃ³ximo jogo serÃ¡ liberado quando este resultado for finalizado."
+    ? "Apostas encerradas para este jogo. O próximo jogo será liberado quando este resultado for finalizado."
     : !paid
-    ? "O palpite serÃ¡ liberado somente apÃ³s confirmaÃ§Ã£o do pagamento."
+    ? "O palpite será liberado somente após confirmação do pagamento."
     : hasGuess
-      ? "Palpite salvo. Boa sorte no BolÃ£o dos Amigos!"
+      ? "Palpite salvo. Boa sorte no Bolão dos Amigos!"
       : "Pagamento confirmado. Informe seu placar para este jogo.";
 
   els.singleMatch.innerHTML = `
@@ -765,14 +765,14 @@ function renderPaymentStep() {
   if (bet.ticketUrl) els.ticketUrl.href = bet.ticketUrl;
   if (HAS_API && !bet.paid) startPaymentPolling(bet);
   if (!bet.pix) {
-    els.pixCode.placeholder = "PIX simulado. Para gerar um QR Code pagÃ¡vel, ative o Mercado Pago no Render ou configure PIX_KEY no ambiente local.";
+    els.pixCode.placeholder = "PIX simulado. Para gerar um QR Code pagável, ative o Mercado Pago no Render ou configure PIX_KEY no ambiente local.";
     drawQrHelp("PIX simulado", "Use o Render com Mercado Pago ativo");
   } else if (bet.qrCodeBase64) {
     els.qrFallback.style.display = "none";
     els.qrImage.style.display = "block";
     els.qrImage.src = `data:image/png;base64,${bet.qrCodeBase64}`;
   } else {
-    els.pixCode.placeholder = "O cÃ³digo PIX aparecerÃ¡ aqui.";
+    els.pixCode.placeholder = "O código PIX aparecerá aqui.";
     renderQr(bet.pix);
   }
 }
@@ -780,7 +780,7 @@ function renderPaymentStep() {
 function renderPaymentMatch() {
   const match = currentMatch();
   if (!match) {
-    els.paymentMatch.innerHTML = `<p class="empty">Nenhum jogo do Brasil disponÃ­vel.</p>`;
+    els.paymentMatch.innerHTML = `<p class="empty">Nenhum jogo do Brasil disponível.</p>`;
     return;
   }
   const bet = state.bets[match.id];
@@ -811,7 +811,7 @@ function renderConfirmationStep() {
   els.successMessage.innerHTML = `
     <strong>Aposta confirmada com sucesso!</strong>
     <p>${state.user.name}, sua aposta em <strong>${match.home} ${bet.home} x ${bet.away} ${match.away}</strong> foi registrada e paga.</p>
-    <p>Boa sorte no BolÃ£o dos Amigos!</p>
+    <p>Boa sorte no Bolão dos Amigos!</p>
   `;
 }
 
@@ -835,7 +835,7 @@ function renderAdminData() {
   renderAdminUsersPanel();
   renderAdminGames();
   renderAdminBets();
-  els.adminResults.innerHTML = `<p class="empty">Resultados, ganhadores e rateio aparecerÃ£o aqui quando houver apostas e placares finalizados.</p>`;
+  els.adminResults.innerHTML = `<p class="empty">Resultados, ganhadores e rateio aparecerão aqui quando houver apostas e placares finalizados.</p>`;
 }
 
 function renderAdminUsersPanel() {
@@ -1066,7 +1066,7 @@ async function deleteAdminUser(userId) {
     if (state.user?.id === userId || userId === "local") logoutParticipant();
     await renderAdminData();
     renderAll();
-    els.adminStatus.textContent = "Cadastro excluÃ­do com sucesso.";
+    els.adminStatus.textContent = "Cadastro excluído com sucesso.";
   } catch (error) {
     els.adminStatus.textContent = error.message;
   }
@@ -1135,12 +1135,12 @@ async function addAdminBonus(event) {
 }
 
 async function deleteAdminBet(betId) {
-  const confirmed = window.confirm("Excluir somente esta aposta? O cadastro do participante sera mantido.");
+  const confirmed = window.confirm("Excluir somente esta aposta? O cadastro do participante será mantido.");
   if (!confirmed) return;
 
   try {
     await apiDelete(`/api/admin/apostas/${encodeURIComponent(betId)}?pin=${encodeURIComponent(ADMIN_PIN)}`);
-    els.adminStatus.textContent = "Aposta excluida com sucesso.";
+    els.adminStatus.textContent = "Aposta excluída com sucesso.";
     await renderAdminData();
     renderAll();
   } catch (error) {
@@ -1170,7 +1170,7 @@ async function saveAdminBetGuess(betId) {
     await renderAdminData();
     const saved = await findAdminBet(betId);
     if (!saved || saved.homeScore !== homeScore || saved.awayScore !== awayScore) {
-      els.adminStatus.textContent = "O servidor respondeu, mas o placar nao ficou salvo. Atualize o server/index.js no Render e faca novo deploy.";
+      els.adminStatus.textContent = "O servidor respondeu, mas o placar não ficou salvo. Atualize o server/index.js no Render e faça novo deploy.";
     }
   } catch (error) {
     els.adminStatus.textContent = error.message;
@@ -1182,7 +1182,7 @@ async function saveAdminGuessRequest(betId, homeScore, awayScore) {
   try {
     return await apiPost(`/api/admin/apostas/${encodeURIComponent(betId)}/palpite`, payload);
   } catch (error) {
-    const fallbackErrors = ["404", "Aposta nao encontrada", "Aposta não encontrada", "Cannot POST", "Not found"];
+    const fallbackErrors = ["404", "Aposta não encontrada", "Aposta não encontrada", "Cannot POST", "Not found"];
     if (!fallbackErrors.some((text) => error.message.includes(text))) throw error;
     try {
       return await apiPost("/api/admin/alterar-palpite", { ...payload, betId });
@@ -1197,7 +1197,7 @@ async function saveAdminGuessViaBackup(betId, homeScore, awayScore) {
   const backup = await apiGet(`/api/admin/backup?pin=${encodeURIComponent(ADMIN_PIN)}`);
   const data = backup.data || backup;
   const bet = data.bets?.find((item) => item.id === betId);
-  if (!bet) throw new Error("Aposta nao encontrada no backup do servidor.");
+  if (!bet) throw new Error("Aposta não encontrada no backup do servidor.");
   if (bet.status !== "paga") throw new Error("Somente apostas pagas podem ter palpite alterado.");
   bet.homeScore = homeScore;
   bet.awayScore = awayScore;
@@ -1248,7 +1248,7 @@ async function restoreAdminBackup() {
     const text = await file.text();
     const backup = JSON.parse(text);
     if (!HAS_API) {
-      throw new Error("ImportaÃ§Ã£o de backup exige o backend ativo.");
+      throw new Error("Importação de backup exige o backend ativo.");
     }
     const result = await apiPost("/api/admin/restaurar", {
       pin: ADMIN_PIN,
@@ -1440,7 +1440,7 @@ function buildPixPayload(orderId, amount) {
   const txid = orderId.replace(/[^A-Z0-9]/gi, "").slice(0, 25).toUpperCase();
   const gui = emv("00", "br.gov.bcb.pix");
   const key = emv("01", PIX_KEY);
-  const description = emv("02", "Bolao dos Amigos 2026");
+  const description = emv("02", "Bolão dos Amigos 2026");
   const merchantAccount = emv("26", gui + key + description);
   const additional = emv("62", emv("05", txid));
   const withoutCrc =
@@ -1673,7 +1673,7 @@ async function renderParticipantResults() {
 
 function getLocalResults(name, cpf) {
   if (!state.user || normalizeText(state.user.name) !== normalizeText(name) || onlyDigits(state.user.cpf) !== onlyDigits(cpf)) {
-    throw new Error("Participante nÃ£o encontrado.");
+    throw new Error("Participante não encontrado.");
   }
   return {
     user: state.user,
@@ -1713,14 +1713,14 @@ function buildResultsHtml(data) {
       return `
         <div class="admin-row">
           <strong>${escapeHtml(bet.game.home)} x ${escapeHtml(bet.game.away)}</strong>
-          <span>Seu palpite: ${hasGuess ? `${bet.homeScore} x ${bet.awayScore}` : "ainda nÃ£o informado"}</span>
+          <span>Seu palpite: ${hasGuess ? `${bet.homeScore} x ${bet.awayScore}` : "ainda não informado"}</span>
           <span>${formatDate(bet.game)}</span>
           <span>Palpite feito em: ${formatDateTime(bet.guessAt || bet.paidAt || bet.createdAt)}</span>
           <span>${resultLine}</span>
           <span><strong>${finalLine}</strong></span>
           <span>${settlement.message || "Aguardando o jogo."}</span>
           <span>Valor a receber: ${prize}</span>
-          <span class="badge">${settlement.status === "ganhou" ? "Ganhou" : settlement.status === "nao_ganhou" ? "NÃ£o ganhou" : "Aguardando"}</span>
+          <span class="badge">${settlement.status === "ganhou" ? "Ganhou" : settlement.status === "nao_ganhou" ? "Não ganhou" : "Aguardando"}</span>
         </div>
       `;
     }).join("")}
