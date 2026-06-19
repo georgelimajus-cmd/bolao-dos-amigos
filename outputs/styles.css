@@ -904,6 +904,31 @@ dd {
   font-weight: 800;
 }
 
+.admin-bonus-form {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  padding: 0;
+}
+
+.admin-bonus-form label {
+  display: grid;
+  gap: 0.2rem;
+  color: #143c25;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.admin-bonus-form input {
+  width: 8.5rem;
+  min-height: 2.65rem;
+  padding: 0.55rem 0.7rem;
+}
+
+.admin-bonus-form button {
+  white-space: nowrap;
+}
+
 .admin-card {
   display: grid;
   align-content: start;
@@ -1159,6 +1184,17 @@ footer a {
   .admin-bet-edit {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     max-width: none;
+  }
+
+  .admin-bonus-form {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .admin-bonus-form label,
+  .admin-bonus-form input,
+  .admin-bonus-form button {
+    width: 100%;
   }
 
   .admin-bet-edit button {

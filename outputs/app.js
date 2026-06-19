@@ -188,6 +188,8 @@ const els = {
   adminDashboard: document.querySelector("#adminDashboard"),
   adminRefresh: document.querySelector("#adminRefresh"),
   adminShowUsers: document.querySelector("#adminShowUsers"),
+  adminBonusForm: document.querySelector("#adminBonusForm"),
+  adminBonusAmount: document.querySelector("#adminBonusAmount"),
   adminCloseBetting: document.querySelector("#adminCloseBetting"),
   adminBackup: document.querySelector("#adminBackup"),
   adminRestore: document.querySelector("#adminRestore"),
@@ -438,6 +440,7 @@ function bindEvents() {
     adminUsersVisible = !adminUsersVisible;
     renderAdminUsersPanel();
   });
+  els.adminBonusForm.addEventListener("submit", addAdminBonus);
   els.adminCloseBetting.addEventListener("click", toggleAdminBettingClosed);
   els.adminBackup.addEventListener("click", downloadAdminBackup);
   els.adminRestore.addEventListener("click", () => els.adminRestoreFile.click());
@@ -797,17 +800,25 @@ function renderAdminGames() {
       const closed = latestAdminData
         ? manualClosedMatchIds.has(match.id) || (match.id === latestAdminData.currentMatchId && latestAdminData.currentMatchClosed)
         : false;
+      const bonus = adminBonusForMatch(match.id);
       const active = adminSelectedMatchId === match.id;
       return `
         <button type="button" class="admin-game-button ${active ? "is-selected" : ""}" data-admin-match="${escapeHtml(match.id)}">
           <strong>Jogo ${match.number}: ${match.home} x ${match.away}</strong>
           <span>${formatDate(match)}</span>
           <span>${match.venue}</span>
+          ${bonus > 0 ? `<span>Bônus: ${money(bonus)}</span>` : ""}
           <span class="badge">${closed ? "Apostas encerradas" : bet?.status === "paga" || bet?.paid ? "Aposta paga" : bet ? "PIX gerado" : "Sem aposta"}</span>
         </button>
       `;
     })
     .join("");
+}
+
+function adminBonusForMatch(matchId) {
+  const entries = latestAdminData?.settings?.bonusByMatchId?.[matchId];
+  if (!Array.isArray(entries)) return 0;
+  return entries.reduce((total, entry) => total + (Number(entry.amount) || 0), 0);
 }
 
 function renderAdminBets() {
@@ -949,6 +960,8 @@ async function renderAdminDataFromApi() {
         <div class="admin-row">
           <strong>${match.home} x ${match.away}</strong>
           <span>Resultado: ${resultText}</span>
+          ${settlement.bonus ? `<span>Bônus do administrador: ${money(settlement.bonus)}</span>` : ""}
+          ${settlement.carryover ? `<span>Acumulado anterior: ${money(settlement.carryover)}</span>` : ""}
           <span>Total líquido: ${money(settlement.netPot)}</span>
           <span>${settlement.message}</span>
         </div>
@@ -1020,6 +1033,35 @@ async function toggleAdminBettingClosed() {
     await loadServerResults();
     await renderAdminData();
     renderAll();
+  } catch (error) {
+    els.adminStatus.textContent = error.message;
+  }
+}
+
+async function addAdminBonus(event) {
+  event.preventDefault();
+  if (!adminSelectedMatchId) {
+    els.adminStatus.textContent = "Selecione um jogo antes de adicionar bônus.";
+    return;
+  }
+
+  const amount = Number(String(els.adminBonusAmount.value || "").replace(",", "."));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    els.adminStatus.textContent = "Informe um valor de bônus maior que zero.";
+    els.adminBonusAmount.focus();
+    return;
+  }
+
+  try {
+    await apiPost("/api/admin/bonus", {
+      pin: ADMIN_PIN,
+      matchId: adminSelectedMatchId,
+      amount
+    });
+    els.adminBonusAmount.value = "";
+    els.adminStatus.textContent = "Bônus adicionado ao valor líquido do bolão.";
+    await renderAdminData();
+    renderStats();
   } catch (error) {
     els.adminStatus.textContent = error.message;
   }
