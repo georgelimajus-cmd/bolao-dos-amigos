@@ -75,7 +75,8 @@ function defaultDb() {
     payments: [],
     results: {},
     settings: {
-      manualClosedMatchIds: []
+      manualClosedMatchIds: [],
+      bonusByMatchId: {}
     }
   };
 }
@@ -117,6 +118,9 @@ function ensureRestoredSeedData(db) {
   db.settings.manualClosedMatchIds = Array.isArray(db.settings.manualClosedMatchIds)
     ? db.settings.manualClosedMatchIds
     : [];
+  db.settings.bonusByMatchId = db.settings.bonusByMatchId && typeof db.settings.bonusByMatchId === "object"
+    ? db.settings.bonusByMatchId
+    : {};
 
   if (!db.settings.repairedJ031BetsToJ006) {
     for (const bet of db.bets) {

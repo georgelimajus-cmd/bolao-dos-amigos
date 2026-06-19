@@ -198,6 +198,16 @@ async function handleApi(req, res) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/admin/bonus") {
+    const body = await readBody(req);
+    if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
+      return sendJson(res, 401, { error: "PIN incorreto." });
+    }
+    const result = addAdminBonus(body);
+    sendJson(res, 200, result);
+    return;
+  }
+
   if (req.method === "POST" && url.pathname.startsWith("/api/admin/apostas/") && url.pathname.endsWith("/palpite")) {
     const body = await readBody(req);
     if (String(body.pin || "") !== env("ADMIN_PIN", "a20b30c40d@")) {
@@ -484,9 +494,10 @@ function buildPublicSummary() {
   const db = readDb();
   const paidBets = db.bets.filter((bet) => bet.status === "paga").length;
   const currentMatch = currentBrazilMatch(db);
+  const currentSettlement = currentMatch ? buildSettlement(db, currentMatch) : null;
   const finalSettlement = latestFinalizedBrazilSettlement(db);
   return {
-    netTotal: paidBets * betValue * (1 - appFeePercent / 100),
+    netTotal: currentSettlement ? currentSettlement.netPot : paidBets * betValue * (1 - appFeePercent / 100),
     currentMatchId: currentMatch?.id || null,
     currentMatchClosed: currentMatch ? isBettingClosed(db, currentMatch) : true,
     finalSettlement,
@@ -661,8 +672,9 @@ function buildSettlement(db, game) {
   const result = db.results?.[game.id];
   const paidBets = db.bets.filter((bet) => bet.matchId === game.id && bet.status === "paga");
   const baseNetPot = paidBets.length * betValue * (1 - appFeePercent / 100);
+  const bonus = bonusNetPotForGame(db, game.id);
   const carryover = carryoverNetPotForGame(db, game);
-  const netPot = baseNetPot + carryover;
+  const netPot = baseNetPot + bonus + carryover;
 
   if (!result || result.status !== "finalizado") {
     return {
@@ -670,6 +682,8 @@ function buildSettlement(db, game) {
       status: "aguardando_jogo",
       message: "Aguardando o jogo terminar.",
       paidBets: paidBets.length,
+      baseNetPot,
+      bonus,
       carryover,
       netPot,
       winners: [],
@@ -696,12 +710,20 @@ function buildSettlement(db, game) {
     status: "finalizado",
     result,
     paidBets: paidBets.length,
+    baseNetPot,
+    bonus,
     carryover,
     netPot,
     winners,
     prizePerWinner: winners.length ? netPot / winners.length : 0,
     message: winners.length ? "Resultado calculado." : "Ninguém acertou o placar. O valor líquido arrecadado irá para o próximo jogo."
   };
+}
+
+function bonusNetPotForGame(db, matchId) {
+  const entries = db.settings?.bonusByMatchId?.[matchId];
+  if (!Array.isArray(entries)) return 0;
+  return entries.reduce((total, entry) => total + (Number(entry.amount) || 0), 0);
 }
 
 function carryoverNetPotForGame(db, game) {
@@ -712,16 +734,19 @@ function carryoverNetPotForGame(db, game) {
   if (gameIndex <= 0) return 0;
 
   let carryover = 0;
-  for (const previousGame of orderedBrazilGames.slice(0, gameIndex)) {
+  for (let index = gameIndex - 1; index >= 0; index -= 1) {
+    const previousGame = orderedBrazilGames[index];
     const result = db.results?.[previousGame.id];
     if (!result || result.status !== "finalizado") break;
+
     const paidBets = db.bets.filter((bet) => bet.matchId === previousGame.id && bet.status === "paga");
-    const previousNetPot = paidBets.length * betValue * (1 - appFeePercent / 100);
+    const previousNetPot = paidBets.length * betValue * (1 - appFeePercent / 100) + bonusNetPotForGame(db, previousGame.id);
     const winners = paidBets.filter((bet) =>
       Number(bet.homeScore) === Number(result.homeScore) &&
       Number(bet.awayScore) === Number(result.awayScore)
     );
-    carryover = winners.length ? 0 : carryover + previousNetPot;
+    if (winners.length) break;
+    carryover += previousNetPot;
   }
   return carryover;
 }
@@ -815,6 +840,38 @@ function setManualBettingClosed(matchId, closed) {
       matchId,
       closed: isBettingClosed(db, game),
       manualClosedMatchIds: db.settings.manualClosedMatchIds
+    };
+  });
+}
+
+function addAdminBonus(body) {
+  const matchId = String(body.matchId || "");
+  const amount = Number(body.amount);
+  if (!games.some((game) => game.id === matchId)) throw new Error("Jogo invalido.");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Informe um valor de bonus maior que zero.");
+
+  return updateDb((db) => {
+    db.settings = db.settings || {};
+    db.settings.bonusByMatchId = db.settings.bonusByMatchId && typeof db.settings.bonusByMatchId === "object"
+      ? db.settings.bonusByMatchId
+      : {};
+    const entries = Array.isArray(db.settings.bonusByMatchId[matchId])
+      ? db.settings.bonusByMatchId[matchId]
+      : [];
+    const bonus = {
+      id: `bonus_${Date.now().toString(16)}`,
+      matchId,
+      amount: Math.round(amount * 100) / 100,
+      description: String(body.description || "Bonus do administrador"),
+      createdAt: new Date().toISOString()
+    };
+    entries.push(bonus);
+    db.settings.bonusByMatchId[matchId] = entries;
+    const game = games.find((item) => item.id === matchId);
+    return {
+      ok: true,
+      bonus,
+      settlement: buildSettlement(db, game)
     };
   });
 }
