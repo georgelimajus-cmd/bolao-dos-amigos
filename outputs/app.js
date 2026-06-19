@@ -21,6 +21,8 @@ let adminCurrentMatchClosed = false;
 let adminSelectedMatchId = null;
 let adminUsersVisible = false;
 let latestAdminData = null;
+let existingUserSignupPrompt = false;
+let existingUserResultData = null;
 let paymentPoll = null;
 let sessionTimer = null;
 
@@ -157,6 +159,7 @@ const els = {
   cpf: document.querySelector("#cpf"),
   userStatus: document.querySelector("#userStatus"),
   signupSummary: document.querySelector("#signupSummary"),
+  existingUserBetButton: document.querySelector("#existingUserBetButton"),
   newParticipantButton: document.querySelector("#newParticipantButton"),
   homeGameStatus: document.querySelector("#homeGameStatus"),
   homeFinalResult: document.querySelector("#homeFinalResult"),
@@ -310,8 +313,16 @@ function bindEvents() {
       return;
     }
 
+    let signupResult = { user, alreadyExists: false };
     try {
-      state.user = HAS_API ? (await apiPost("/api/usuarios", user)).user : user;
+      if (HAS_API) {
+        const response = await apiPost("/api/usuarios", user);
+        signupResult = {
+          user: response.user || response,
+          alreadyExists: Boolean(response.alreadyExists)
+        };
+      }
+      state.user = signupResult.user;
     } catch (error) {
       els.userStatus.textContent = error.message;
       return;
@@ -325,8 +336,20 @@ function bindEvents() {
     }
     state.sessionExpiresAt = null;
     saveState();
-    await ensurePaymentForCurrentMatch();
     hydrateUser();
+
+    if (signupResult.alreadyExists) {
+      existingUserSignupPrompt = true;
+      existingUserResultData = await loadExistingUserResults(state.user);
+      renderAll();
+      els.userStatus.textContent = "Cadastro já existe. Clique em NOVA APOSTA para apostar no jogo atual.";
+      showScreen("cadastro");
+      return;
+    }
+
+    existingUserSignupPrompt = false;
+    existingUserResultData = null;
+    await ensurePaymentForCurrentMatch();
     renderAll();
     scheduleSessionLogout();
     showScreen("pagamento");
@@ -422,6 +445,8 @@ function bindEvents() {
   els.newBetButton.addEventListener("click", () => {
     logoutParticipant();
   });
+
+  els.existingUserBetButton.addEventListener("click", startExistingUserBet);
 
   els.adminLoginForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -567,20 +592,24 @@ function renderSignupSummary() {
   if (!state.user) {
     els.signupSummary.classList.add("is-hidden");
     els.signupSummary.innerHTML = "";
+    els.existingUserBetButton.classList.add("is-hidden");
     els.newParticipantButton.classList.add("is-hidden");
     return;
   }
 
-  const bets = Object.values(state.bets);
+  const bets = existingUserResultData?.bets || Object.values(state.bets);
   const rows = bets.length
     ? bets.map((bet) => {
-        const match = brazilMatches.find((item) => item.id === bet.matchId);
-        const hasGuess = bet.home !== null && bet.home !== undefined && bet.away !== null && bet.away !== undefined;
+        const match = bet.game || brazilMatches.find((item) => item.id === bet.matchId);
+        const homeScore = bet.homeScore ?? bet.home;
+        const awayScore = bet.awayScore ?? bet.away;
+        const isPaid = bet.status === "paga" || bet.paid;
+        const hasGuess = homeScore !== null && homeScore !== undefined && awayScore !== null && awayScore !== undefined;
         return `
           <div class="admin-row">
             <strong>${match ? `${escapeHtml(match.home)} x ${escapeHtml(match.away)}` : "Jogo do Brasil"}</strong>
-            <span>Status: ${bet.paid ? "Pagamento confirmado" : "Aguardando pagamento"}</span>
-            <span>Palpite: ${hasGuess ? `${bet.home} x ${bet.away}` : "ainda nÃ£o informado"}</span>
+            <span>Status: ${isPaid ? "Pagamento confirmado" : "Aguardando pagamento"}</span>
+            <span>Palpite: ${hasGuess ? `${homeScore} x ${awayScore}` : "ainda não informado"}</span>
             <span>Data: ${formatDateTime(bet.guessAt || bet.paidAt || bet.createdAt)}</span>
           </div>
         `;
@@ -596,7 +625,45 @@ function renderSignupSummary() {
     </div>
     ${rows}
   `;
+  els.existingUserBetButton.classList.toggle("is-hidden", !existingUserSignupPrompt);
   els.newParticipantButton.classList.remove("is-hidden");
+}
+
+async function loadExistingUserResults(user) {
+  if (!HAS_API || !user) return null;
+  try {
+    return await apiPost("/api/resultados", {
+      name: user.name,
+      cpf: user.cpf
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function startExistingUserBet() {
+  const match = currentMatch();
+  if (!state.user) {
+    els.userStatus.textContent = "Informe seus dados de cadastro antes de iniciar uma nova aposta.";
+    return;
+  }
+  if (!match || isBettingClosed(match)) {
+    els.userStatus.textContent = "O jogo começou, fim das apostas. Aguarde o resultado!";
+    return;
+  }
+
+  try {
+    state.currentMatchId = state.currentMatchId || firstAvailableMatchId();
+    await ensurePaymentForCurrentMatch();
+    existingUserSignupPrompt = false;
+    existingUserResultData = null;
+    saveState();
+    renderAll();
+    scheduleSessionLogout();
+    showScreen("pagamento");
+  } catch (error) {
+    els.userStatus.textContent = error.message;
+  }
 }
 
 function renderStats() {
@@ -1554,6 +1621,8 @@ function logoutParticipant() {
   state.pendingMatchId = null;
   state.lastConfirmedMatchId = null;
   state.sessionExpiresAt = null;
+  existingUserSignupPrompt = false;
+  existingUserResultData = null;
   saveState();
   els.signupForm.reset();
   els.name.disabled = false;
@@ -1570,6 +1639,8 @@ function startNewParticipant() {
   state.pendingMatchId = null;
   state.lastConfirmedMatchId = null;
   state.sessionExpiresAt = null;
+  existingUserSignupPrompt = false;
+  existingUserResultData = null;
   saveState();
   els.signupForm.reset();
   els.name.disabled = false;
@@ -1578,6 +1649,7 @@ function startNewParticipant() {
   els.signupButton.disabled = false;
   els.signupSummary.classList.add("is-hidden");
   els.signupSummary.innerHTML = "";
+  els.existingUserBetButton.classList.add("is-hidden");
   els.newParticipantButton.classList.add("is-hidden");
   renderAll();
   showScreen("cadastro");

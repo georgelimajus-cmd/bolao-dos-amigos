@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Bolão dos Amigos - Copa do Mundo 2026</title>
-    <link rel="stylesheet" href="styles.css?v=20260618-1" />
+    <link rel="stylesheet" href="styles.css?v=20260619-1" />
   </head>
   <body>
     <header class="topbar">
@@ -87,7 +87,10 @@
         </form>
         <p class="notice" id="userStatus">Faça seu cadastro uma única vez para apostar nos jogos do Brasil.</p>
         <div class="summary is-hidden" id="signupSummary"></div>
-        <button type="button" class="primary is-hidden" id="newParticipantButton">Cadastrar novo apostador</button>
+        <div class="button-row signup-actions">
+          <button type="button" class="primary is-hidden" id="existingUserBetButton">NOVA APOSTA</button>
+          <button type="button" class="is-hidden" id="newParticipantButton">Cadastrar novo apostador</button>
+        </div>
       </section>
 
       <section class="panel flow-panel screen" id="pagamento">
@@ -243,6 +246,6 @@
       <a href="https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/articles/match-schedule-fixtures-results-teams-stadiums" target="_blank" rel="noreferrer">Calendário FIFA</a>
     </footer>
 
-    <script src="app.js?v=20260618-1"></script>
+    <script src="app.js?v=20260619-1"></script>
   </body>
 </html>
