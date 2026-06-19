@@ -41,7 +41,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`Bolao dos Amigos rodando em http://localhost:${port}`);
+  console.log(`Bolão dos Amigos rodando em http://localhost:${port}`);
   console.log(`Mercado Pago: ${mercadoPagoEnabled() ? "ativo" : "simulado"}`);
 });
 
@@ -58,7 +58,7 @@ async function handleApi(req, res) {
   if (req.method === "GET" && url.pathname === "/api/health") {
     sendJson(res, 200, {
       ok: true,
-      app: "Bolao dos Amigos",
+      app: "Bolão dos Amigos",
       mercadoPagoEnabled: mercadoPagoEnabled(),
       time: new Date().toISOString()
     });
@@ -102,7 +102,7 @@ async function handleApi(req, res) {
     const id = url.pathname.split("/").pop();
     const db = readDb();
     const bet = db.bets.find((item) => item.id === id);
-    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    if (!bet) return sendJson(res, 404, { error: "Aposta não encontrada." });
     sendJson(res, 200, { bet });
     return;
   }
@@ -112,7 +112,7 @@ async function handleApi(req, res) {
     const id = parts[3];
     const body = await readBody(req);
     const bet = saveGuess(id, body);
-    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    if (!bet) return sendJson(res, 404, { error: "Aposta não encontrada." });
     sendJson(res, 200, { bet });
     return;
   }
@@ -121,7 +121,7 @@ async function handleApi(req, res) {
     const parts = url.pathname.split("/");
     const id = parts[3];
     if (mercadoPagoEnabled()) {
-      return sendJson(res, 400, { error: "Simulacao desativada com Mercado Pago real." });
+      return sendJson(res, 400, { error: "Simulação desativada com Mercado Pago real." });
     }
     const bet = updateDb((db) => {
       const item = db.bets.find((candidate) => candidate.id === id);
@@ -131,7 +131,7 @@ async function handleApi(req, res) {
       activateUserForPaidBet(db, item);
       return item;
     });
-    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    if (!bet) return sendJson(res, 404, { error: "Aposta não encontrada." });
     sendJson(res, 200, { bet });
     return;
   }
@@ -173,7 +173,7 @@ async function handleApi(req, res) {
       return sendJson(res, 401, { error: "PIN incorreto." });
     }
     const bet = updateGuessByAdmin(String(body.betId || ""), body);
-    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    if (!bet) return sendJson(res, 404, { error: "Aposta não encontrada." });
     sendJson(res, 200, { bet });
     return;
   }
@@ -216,7 +216,7 @@ async function handleApi(req, res) {
     const parts = url.pathname.split("/");
     const betId = decodeURIComponent(parts[4]);
     const bet = updateGuessByAdmin(betId, body);
-    if (!bet) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    if (!bet) return sendJson(res, 404, { error: "Aposta não encontrada." });
     sendJson(res, 200, { bet });
     return;
   }
@@ -228,7 +228,7 @@ async function handleApi(req, res) {
     }
     const userId = decodeURIComponent(url.pathname.split("/").pop());
     const result = deleteUser(userId);
-    if (!result.deleted) return sendJson(res, 404, { error: "Cadastro nao encontrado." });
+    if (!result.deleted) return sendJson(res, 404, { error: "Cadastro não encontrado." });
     sendJson(res, 200, result);
     return;
   }
@@ -240,7 +240,7 @@ async function handleApi(req, res) {
     }
     const betId = decodeURIComponent(url.pathname.split("/").pop());
     const result = deleteBet(betId);
-    if (!result.deleted) return sendJson(res, 404, { error: "Aposta nao encontrada." });
+    if (!result.deleted) return sendJson(res, 404, { error: "Aposta não encontrada." });
     sendJson(res, 200, result);
     return;
   }
@@ -268,7 +268,7 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/resultados") {
     const body = await readBody(req);
     const result = findResults(body);
-    if (!result) return sendJson(res, 404, { error: "Participante nao encontrado." });
+    if (!result) return sendJson(res, 404, { error: "Participante não encontrado." });
     sendJson(res, 200, result);
     return;
   }
@@ -276,42 +276,30 @@ async function handleApi(req, res) {
   if (req.method === "POST" && url.pathname === "/api/webhook/mercadopago") {
     const body = await readBody(req);
     if (!validateWebhookSignature(req.headers, body)) {
-      return sendJson(res, 401, { error: "Assinatura do webhook invalida." });
+      return sendJson(res, 401, { error: "Assinatura do webhook inválida." });
     }
     await handleMercadoPagoWebhook(body);
     sendJson(res, 200, { ok: true });
     return;
   }
 
-  sendJson(res, 404, { error: "Rota nao encontrada." });
+  sendJson(res, 404, { error: "Rota não encontrada." });
 }
 
 function saveUser(body) {
   const name = String(body.name || body.nome || "").trim();
   const phone = String(body.phone || body.celular || "").trim();
   const cpf = String(body.cpf || "").trim();
-  if (!name || !phone || !cpf) throw new Error("Nome, celular e CPF sao obrigatorios.");
+  if (!name || !phone || !cpf) throw new Error("Nome, celular e CPF são obrigatórios.");
   if (normalizeName(name).split(" ").length < 2) throw new Error("Informe o nome completo.");
-  if (!isValidCpf(cpf)) throw new Error("CPF invalido.");
-  if (!isValidPhone(phone)) throw new Error("Celular invalido.");
+  if (!isValidCpf(cpf)) throw new Error("CPF inválido.");
+  if (!isValidPhone(phone)) throw new Error("Celular inválido.");
 
   return updateDb((db) => {
     const cpfDigits = onlyDigits(cpf);
-    const phoneDigits = onlyDigits(phone);
     const userByCpf = db.users.find((item) => onlyDigits(item.cpf) === cpfDigits);
-    const userByPhone = db.users.find((item) => onlyDigits(item.phone) === phoneDigits);
 
-    if (userByCpf && userByPhone && userByCpf.id !== userByPhone.id) {
-      throw new Error("CPF e celular ja pertencem a cadastros diferentes.");
-    }
-    if (userByCpf && onlyDigits(userByCpf.phone) !== phoneDigits) {
-      throw new Error("Este CPF ja esta cadastrado com outro celular.");
-    }
-    if (userByPhone && onlyDigits(userByPhone.cpf) !== cpfDigits) {
-      throw new Error("Este celular ja esta cadastrado com outro CPF.");
-    }
-
-    let user = userByCpf || userByPhone;
+    let user = userByCpf;
     if (user) {
       user.name = name;
       user.phone = phone;
@@ -334,28 +322,28 @@ function saveUser(body) {
 async function createBet(body) {
   const userId = String(body.userId || body.usuario_id || "");
   const matchId = String(body.matchId || body.jogo_id || "");
-  const homeScore = body.homeScore ? body.placar_casa;
-  const awayScore = body.awayScore ? body.placar_fora;
+  const homeScore = body.homeScore ?? body.placar_casa;
+  const awayScore = body.awayScore ?? body.placar_fora;
   const match = games.find((item) => item.id === matchId);
-  if (!match) throw new Error("Jogo invalido.");
+  if (!match) throw new Error("Jogo inválido.");
   if (!isOptionalScore(homeScore) || !isOptionalScore(awayScore)) {
-    throw new Error("Placar invalido.");
+    throw new Error("Placar inválido.");
   }
   const db = readDb();
-  if (isManualBettingClosed(db, matchId)) throw new Error("O jogo comeÃ§ou, fim das apostas. Aguarde o resultado!");
-  if (!isBettingOpen(match)) throw new Error("As apostas para este jogo ainda nao foram abertas.");
-  if (!canBet(match)) throw new Error("O jogo comeÃ§ou, fim das apostas. Aguarde o resultado!");
+  if (isManualBettingClosed(db, matchId)) throw new Error("O jogo começou, fim das apostas. Aguarde o resultado!");
+  if (!isBettingOpen(match)) throw new Error("As apostas para este jogo ainda não foram abertas.");
+  if (!canBet(match)) throw new Error("O jogo começou, fim das apostas. Aguarde o resultado!");
   if (!isCurrentBrazilMatchAvailable(db, matchId)) {
-    throw new Error("Este jogo ainda nao esta liberado. As apostas seguem a sequencia dos jogos do Brasil.");
+    throw new Error("Este jogo ainda não está liberado. As apostas seguem a sequência dos jogos do Brasil.");
   }
   const user = db.users.find((item) => item.id === userId);
-  if (!user) throw new Error("Usuario nao encontrado.");
+  if (!user) throw new Error("Usuário não encontrado.");
   const paidBet = db.bets.find((item) => item.userId === userId && item.matchId === matchId && item.status === "paga");
-  if (paidBet) throw new Error("Este usuario ja possui uma aposta paga para este jogo.");
+  if (paidBet) throw new Error("Este usuário já possui uma aposta paga para este jogo.");
 
   const existingPending = db.bets.find((item) => item.userId === userId && item.matchId === matchId && item.status !== "paga");
   const betId = existingPending?.id || randomId("bet");
-  const description = `Bolao dos Amigos - ${match.home} x ${match.away}`;
+  const description = `Bolão dos Amigos - ${match.home} x ${match.away}`;
   const payment = await createPixPayment({
     amount: betValue,
     description,
@@ -400,9 +388,9 @@ function saveGuess(betId, body) {
   return updateDb((db) => {
     const bet = db.bets.find((item) => item.id === betId);
     if (!bet) return null;
-    if (bet.status !== "paga") throw new Error("Pagamento ainda nao confirmado.");
+    if (bet.status !== "paga") throw new Error("Pagamento ainda não confirmado.");
     if (bet.homeScore !== null && bet.homeScore !== undefined && bet.awayScore !== null && bet.awayScore !== undefined) {
-      throw new Error("Este CPF e celular ja possuem uma aposta registrada para este jogo.");
+      throw new Error("Este CPF já possui uma aposta registrada para este jogo.");
     }
     bet.homeScore = homeScore;
     bet.awayScore = awayScore;
@@ -427,15 +415,15 @@ function updateGuessByAdmin(betId, body) {
 }
 
 function parseRequiredScore(body) {
-  const homeRaw = body.homeScore ? body.placar_casa;
-  const awayRaw = body.awayScore ? body.placar_fora;
+  const homeRaw = body.homeScore ?? body.placar_casa;
+  const awayRaw = body.awayScore ?? body.placar_fora;
   if (homeRaw === undefined || homeRaw === null || homeRaw === "" || awayRaw === undefined || awayRaw === null || awayRaw === "") {
     throw new Error("Digite o palpite completo para finalizar a aposta.");
   }
   const homeScore = Number(homeRaw);
   const awayScore = Number(awayRaw);
   if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
-    throw new Error("Placar invalido.");
+    throw new Error("Placar inválido.");
   }
   return { homeScore, awayScore };
 }
@@ -567,7 +555,7 @@ function restoreBackup(body) {
 
 function normalizeBackupPayload(body) {
   const source = body?.data || body?.backup || body;
-  if (!source || typeof source !== "object") throw new Error("Backup invalido.");
+  if (!source || typeof source !== "object") throw new Error("Backup inválido.");
   return {
     users: Array.isArray(source.users) ? source.users : [],
     bets: Array.isArray(source.bets) ? source.bets : [],
@@ -626,7 +614,7 @@ function deleteBet(betId) {
 function findResults(body) {
   const name = normalizeName(body.name || body.nome);
   const cpf = onlyDigits(body.cpf);
-  if (!name || !cpf) throw new Error("Nome e CPF sao obrigatorios.");
+  if (!name || !cpf) throw new Error("Nome e CPF são obrigatórios.");
 
   const db = readDb();
   const paidUserIds = new Set(db.bets.filter((bet) => bet.status === "paga").map((bet) => bet.userId));
@@ -650,7 +638,7 @@ function findResults(body) {
 
 function buildUserBetSettlement(db, bet) {
   const game = games.find((item) => item.id === bet.matchId);
-  if (!game) return { status: "jogo_nao_encontrado", message: "Jogo nÃ£o encontrado." };
+  if (!game) return { status: "jogo_nao_encontrado", message: "Jogo não encontrado." };
   const settlement = buildSettlement(db, game);
   if (settlement.status !== "finalizado") {
     return {
@@ -664,7 +652,7 @@ function buildUserBetSettlement(db, bet) {
     status: winner ? "ganhou" : "nao_ganhou",
     result: settlement.result,
     prize: winner ? settlement.prizePerWinner : 0,
-    message: winner ? "VocÃª acertou o placar." : "VocÃª nÃ£o acertou o placar."
+    message: winner ? "Você acertou o placar." : "Você não acertou o placar."
   };
 }
 
@@ -827,7 +815,7 @@ function isBettingOpen(match) {
 }
 
 function setManualBettingClosed(matchId, closed) {
-  if (!games.some((game) => game.id === matchId)) throw new Error("Jogo invalido.");
+  if (!games.some((game) => game.id === matchId)) throw new Error("Jogo inválido.");
   return updateDb((db) => {
     db.settings = db.settings || {};
     const ids = new Set(Array.isArray(db.settings.manualClosedMatchIds) ? db.settings.manualClosedMatchIds : []);
@@ -847,8 +835,8 @@ function setManualBettingClosed(matchId, closed) {
 function addAdminBonus(body) {
   const matchId = String(body.matchId || "");
   const amount = Number(body.amount);
-  if (!games.some((game) => game.id === matchId)) throw new Error("Jogo invalido.");
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Informe um valor de bonus maior que zero.");
+  if (!games.some((game) => game.id === matchId)) throw new Error("Jogo inválido.");
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("Informe um valor de bônus maior que zero.");
 
   return updateDb((db) => {
     db.settings = db.settings || {};
@@ -862,7 +850,7 @@ function addAdminBonus(body) {
       id: `bonus_${Date.now().toString(16)}`,
       matchId,
       amount: Math.round(amount * 100) / 100,
-      description: String(body.description || "Bonus do administrador"),
+      description: String(body.description || "Bônus do administrador"),
       createdAt: new Date().toISOString()
     };
     entries.push(bonus);
@@ -879,11 +867,11 @@ function addAdminBonus(body) {
 function saveManualResult(body) {
   const matchId = String(body.matchId || "");
   const game = games.find((item) => item.id === matchId);
-  if (!game) throw new Error("Jogo invÃ¡lido.");
+  if (!game) throw new Error("Jogo inválido.");
   const homeScore = Number(body.homeScore);
   const awayScore = Number(body.awayScore);
   if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore) || homeScore < 0 || awayScore < 0) {
-    throw new Error("Placar invÃ¡lido.");
+    throw new Error("Placar inválido.");
   }
 
   return updateDb((db) => {
@@ -905,7 +893,7 @@ async function syncResultsFromSource() {
   if (!sourceUrl) {
     return {
       updated: 0,
-      message: "RESULTS_SOURCE_URL nÃ£o configurada. Configure uma API oficial/provedor para sincronizaÃ§Ã£o automÃ¡tica."
+      message: "RESULTS_SOURCE_URL não configurada. Configure uma API oficial/provedor para sincronização automática."
     };
   }
 
@@ -920,8 +908,8 @@ async function syncResultsFromSource() {
       const matchId = String(item.matchId || item.id || "");
       if (!games.some((game) => game.id === matchId)) continue;
       if (item.status !== "finalizado" && item.status !== "finished") continue;
-      const homeScore = Number(item.homeScore ? item.home_score);
-      const awayScore = Number(item.awayScore ? item.away_score);
+      const homeScore = Number(item.homeScore ?? item.home_score);
+      const awayScore = Number(item.awayScore ?? item.away_score);
       if (!Number.isInteger(homeScore) || !Number.isInteger(awayScore)) continue;
       db.results[matchId] = {
         matchId,
@@ -988,7 +976,7 @@ function readBody(req) {
       try {
         resolve(JSON.parse(body));
       } catch {
-        reject(new Error("JSON invalido."));
+        reject(new Error("JSON inválido."));
       }
     });
   });
