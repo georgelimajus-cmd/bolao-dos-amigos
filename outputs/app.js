@@ -558,9 +558,7 @@ function renderHomeGameStatus() {
   const closed = isBettingClosed(match);
   els.homeGameStatus.classList.toggle("is-hidden", !closed);
   els.homeGameStatus.textContent = closed
-    ? match.id === "j031" && !isBettingOpen(match)
-      ? "Próximo jogo: Brasil x Haiti. Apostas abertas a partir de amanhã, às 8h."
-      : "Brasil x Marrocos: o jogo começou, fim das apostas. Aguarde o resultado!"
+    ? `${match.home} e ${match.away}. O jogo começou. Fim das apostas. Aguarde o resultado.`
     : "";
   document.querySelectorAll('[data-screen-target="cadastro"]').forEach((button) => {
     button.classList.toggle("is-hidden", closed);
