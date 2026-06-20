@@ -558,7 +558,7 @@ function renderHomeGameStatus() {
   const closed = isBettingClosed(match);
   els.homeGameStatus.classList.toggle("is-hidden", !closed);
   els.homeGameStatus.textContent = closed
-    ? `${match.home} X ${match.away}. O jogo começou. Fim das apostas. Aguarde o resultado !`
+    ? "Brasil 3 x 0 Haiti. Fim de jogo, ninguém acertou o placar !"
     : "";
   document.querySelectorAll('[data-screen-target="cadastro"]').forEach((button) => {
     button.classList.toggle("is-hidden", closed);
