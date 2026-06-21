@@ -556,10 +556,14 @@ function renderHomeGameStatus() {
   const match = currentMatch();
   if (!els.homeGameStatus || !match) return;
   const closed = isBettingClosed(match);
-  els.homeGameStatus.classList.toggle("is-hidden", !closed);
-  els.homeGameStatus.textContent = closed
-    ? "Brasil 3 x 0 Haiti. Fim de jogo, ninguém acertou o placar !"
-    : "";
+  const betsStarted = match.id === "j051" && !closed;
+  els.homeGameStatus.classList.toggle("is-hidden", !closed && !betsStarted);
+  els.homeGameStatus.classList.toggle("bets-open", betsStarted);
+  els.homeGameStatus.textContent = betsStarted
+    ? "Apostas iniciadas. 24 de junho (quarta-feira) - 19h: Escócia x Brasil (Hard Rock Stadium, Miami)"
+    : closed
+      ? `${match.home} x ${match.away}. O jogo começou. Fim das apostas. Aguarde o resultado!`
+      : "";
   document.querySelectorAll('[data-screen-target="cadastro"]').forEach((button) => {
     button.classList.toggle("is-hidden", closed);
     button.disabled = closed;
