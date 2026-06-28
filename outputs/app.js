@@ -102,7 +102,7 @@ const matches = [
   fixture(73, "32 avos", "32 avos", "2o Grupo A", "2o Grupo B", "2026-06-28", null, "SoFi Stadium, Inglewood"),
   fixture(74, "32 avos", "32 avos", "1o Grupo E", "3o Grupo A/B/C/D/F", "2026-06-29", null, "Gillette Stadium, Foxborough"),
   fixture(75, "32 avos", "32 avos", "1o Grupo F", "2o Grupo C", "2026-06-29", null, "Estadio BBVA, Guadalupe"),
-  fixture(76, "32 avos", "32 avos", "1o Grupo C", "2o Grupo F", "2026-06-29", null, "NRG Stadium, Houston"),
+  fixture(76, "32 avos", "32 avos", "Brasil", "Japão", "2026-06-29", "14:00", "NRG Stadium, Houston"),
   fixture(77, "32 avos", "32 avos", "1o Grupo I", "3o Grupo C/D/F/G/H", "2026-06-30", null, "MetLife Stadium, East Rutherford"),
   fixture(78, "32 avos", "32 avos", "2o Grupo E", "2o Grupo I", "2026-06-30", null, "AT&T Stadium, Arlington"),
   fixture(79, "32 avos", "32 avos", "1o Grupo A", "3o Grupo C/E/F/H/I", "2026-06-30", null, "Estadio Azteca, Cidade do Mexico"),
@@ -556,7 +556,7 @@ function renderHomeGameStatus() {
   const match = currentMatch();
   if (!els.homeGameStatus || !match) return;
   const closed = isBettingClosed(match);
-  const betsStarted = match.id === "j051" && !closed;
+  const betsStarted = match.id === "j076" && !closed;
   els.homeGameStatus.classList.toggle("is-hidden", !closed && !betsStarted);
   els.homeGameStatus.classList.toggle("bets-open", betsStarted);
   els.homeGameStatus.textContent = betsStarted
@@ -1390,7 +1390,7 @@ function startPaymentPolling(bet) {
 }
 
 function firstAvailableMatchId() {
-  return brazilMatches.find((match) => !isMatchFinished(match.id))?.id || null;
+  return brazilMatches.find((match) => !isMatchFinished(match.id) && !manualClosedMatchIds.has(match.id))?.id || null;
 }
 
 function isMatchFinished(matchId) {

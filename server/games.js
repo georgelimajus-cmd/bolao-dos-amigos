@@ -31,6 +31,17 @@ const games = [
     venue: "Hard Rock Stadium, Miami Gardens",
     displayTime: "19:00",
     startsAt: "2026-06-24T19:00:00-03:00"
+  },
+  {
+    id: "j076",
+    number: 76,
+    stage: "32 avos",
+    group: "32 avos",
+    home: "Brasil",
+    away: "Japão",
+    venue: "NRG Stadium, Houston",
+    displayTime: "14:00",
+    startsAt: "2026-06-29T14:00:00-03:00"
   }
 ];
 
