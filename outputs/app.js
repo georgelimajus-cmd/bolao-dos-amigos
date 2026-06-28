@@ -560,7 +560,7 @@ function renderHomeGameStatus() {
   els.homeGameStatus.classList.toggle("is-hidden", !closed && !betsStarted);
   els.homeGameStatus.classList.toggle("bets-open", betsStarted);
   els.homeGameStatus.textContent = betsStarted
-    ? "Apostas iniciadas. 24 de junho (quarta-feira) - 19h: Escócia x Brasil (Hard Rock Stadium, Miami)"
+    ? "APOSTAS INICIADAS. Jogo 76 - Brasil x Japão. Em Houston, nos EUA - 14h00 em Brasília."
     : closed
       ? `${match.home} x ${match.away}. O jogo começou. Fim das apostas. Aguarde o resultado!`
       : "";
