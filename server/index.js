@@ -725,16 +725,22 @@ function carryoverNetPotForGame(db, game) {
   for (let index = gameIndex - 1; index >= 0; index -= 1) {
     const previousGame = orderedBrazilGames[index];
     const result = db.results?.[previousGame.id];
-    if (!result || result.status !== "finalizado") break;
-
     const paidBets = db.bets.filter((bet) => bet.matchId === previousGame.id && bet.status === "paga");
-    const previousNetPot = paidBets.length * betValue * (1 - appFeePercent / 100) + bonusNetPotForGame(db, previousGame.id);
+    const previousBaseNetPot = paidBets.length * betValue * (1 - appFeePercent / 100) + bonusNetPotForGame(db, previousGame.id);
+
+    if (!result || result.status !== "finalizado") {
+      if (isBettingClosed(db, previousGame)) {
+        carryover += previousBaseNetPot + carryoverNetPotForGame(db, previousGame);
+      }
+      break;
+    }
+
     const winners = paidBets.filter((bet) =>
       Number(bet.homeScore) === Number(result.homeScore) &&
       Number(bet.awayScore) === Number(result.awayScore)
     );
     if (winners.length) break;
-    carryover += previousNetPot;
+    carryover += previousBaseNetPot;
   }
   return carryover;
 }
