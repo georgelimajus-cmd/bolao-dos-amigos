@@ -1390,7 +1390,12 @@ function startPaymentPolling(bet) {
 }
 
 function firstAvailableMatchId() {
-  return brazilMatches.find((match) => !isMatchFinished(match.id) && !manualClosedMatchIds.has(match.id))?.id || null;
+  return brazilMatches.find((match) =>
+    !isMatchFinished(match.id) &&
+    !manualClosedMatchIds.has(match.id) &&
+    isBettingOpen(match) &&
+    canBet(match)
+  )?.id || null;
 }
 
 function isMatchFinished(matchId) {

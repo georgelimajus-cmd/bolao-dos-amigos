@@ -775,7 +775,10 @@ function isCurrentBrazilMatchAvailable(db, matchId) {
     .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
   const nextGame = orderedBrazilGames.find((game) => {
     const result = db.results?.[game.id];
-    return (!result || result.status !== "finalizado") && !isManualBettingClosed(db, game.id);
+    return (!result || result.status !== "finalizado") &&
+      !isManualBettingClosed(db, game.id) &&
+      isBettingOpen(game) &&
+      canBet(game);
   });
   return nextGame?.id === matchId;
 }
@@ -786,7 +789,10 @@ function currentBrazilMatch(db) {
     .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
     .find((game) => {
       const result = db.results?.[game.id];
-      return (!result || result.status !== "finalizado") && !isManualBettingClosed(db, game.id);
+      return (!result || result.status !== "finalizado") &&
+        !isManualBettingClosed(db, game.id) &&
+        isBettingOpen(game) &&
+        canBet(game);
     }) || null;
 }
 
