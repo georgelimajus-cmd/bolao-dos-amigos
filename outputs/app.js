@@ -554,7 +554,16 @@ function hydrateUser() {
 
 function renderHomeGameStatus() {
   const match = currentMatch();
-  if (!els.homeGameStatus || !match) return;
+  if (!els.homeGameStatus) return;
+  if (!match) {
+    els.homeGameStatus.classList.remove("is-hidden", "bets-open");
+    els.homeGameStatus.textContent = "Apostas encerradas.";
+    document.querySelectorAll('[data-screen-target="cadastro"]').forEach((button) => {
+      button.classList.add("is-hidden");
+      button.disabled = true;
+    });
+    return;
+  }
   const closed = isBettingClosed(match);
   const betsStarted = match.id === "j076" && !closed;
   els.homeGameStatus.classList.toggle("is-hidden", !closed && !betsStarted);
@@ -562,7 +571,7 @@ function renderHomeGameStatus() {
   els.homeGameStatus.textContent = betsStarted
     ? "APOSTAS INICIADAS. Jogo 76 - Brasil x Japão. Em Houston, nos EUA - 14h00 em Brasília."
     : closed
-      ? `${match.home} x ${match.away}. O jogo começou. Fim das apostas. Aguarde o resultado!`
+      ? "Apostas encerradas."
       : "";
   document.querySelectorAll('[data-screen-target="cadastro"]').forEach((button) => {
     button.classList.toggle("is-hidden", closed);
