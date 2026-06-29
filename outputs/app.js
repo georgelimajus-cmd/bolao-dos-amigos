@@ -1724,8 +1724,19 @@ function buildResultsHtml(data) {
         : "Resultado: aguardando o jogo";
       const prize = settlement.status === "ganhou" ? money(settlement.prize) : money(0);
       const finalLine = settlement.result
-        ? `Final do jogo: ${settlement.status === "ganhou" ? "Você acertou o placar!" : "Você não acertou o placar."} Valor a receber: ${prize}`
+        ? `Final do jogo: ${settlement.status === "ganhou" ? "Parabéns! Você acertou o placar!" : "Você não acertou o placar."} Valor a receber: ${prize}`
         : "Final do jogo: aguardando resultado.";
+      const winnerDetails = settlement.status === "ganhou"
+        ? `
+          <div class="winner-result-box">
+            <strong>Parabéns! Você ganhou.</strong>
+            <span>Valor total do bolão: ${money(settlement.netPot || 0)}</span>
+            <span>Dividido para ${settlement.winnersCount || 1} ganhador(es): ${prize} para cada.</span>
+            <span>Valor que você vai receber: ${prize}</span>
+            <span>Ganhador(es): ${(settlement.winners || []).map((winner) => escapeHtml(winner.name)).join(", ")}</span>
+          </div>
+        `
+        : "";
       return `
         <div class="admin-row">
           <strong>${escapeHtml(bet.game.home)} x ${escapeHtml(bet.game.away)}</strong>
@@ -1736,6 +1747,7 @@ function buildResultsHtml(data) {
           <span><strong>${finalLine}</strong></span>
           <span>${settlement.message || "Aguardando o jogo."}</span>
           <span>Valor a receber: ${prize}</span>
+          ${winnerDetails}
           <span class="badge">${settlement.status === "ganhou" ? "Ganhou" : settlement.status === "nao_ganhou" ? "Não ganhou" : "Aguardando"}</span>
         </div>
       `;

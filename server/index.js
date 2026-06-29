@@ -657,7 +657,18 @@ function buildUserBetSettlement(db, bet) {
     status: winner ? "ganhou" : "nao_ganhou",
     result: settlement.result,
     prize: winner ? settlement.prizePerWinner : 0,
-    message: winner ? "Você acertou o placar." : "Você não acertou o placar."
+    netPot: winner ? settlement.netPot : 0,
+    winnersCount: winner ? settlement.winners.length : 0,
+    winners: winner
+      ? settlement.winners.map((item) => ({
+        name: item.name,
+        homeScore: item.homeScore,
+        awayScore: item.awayScore
+      }))
+      : [],
+    message: winner
+      ? "Parabéns! Você acertou o placar."
+      : "Você não acertou o placar."
   };
 }
 

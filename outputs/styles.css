@@ -351,6 +351,23 @@ h2 {
   font-weight: 900;
 }
 
+.winner-result-box {
+  display: grid;
+  gap: 0.32rem;
+  margin-top: 0.35rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(17, 144, 79, 0.28);
+  border-left: 4px solid var(--green);
+  border-radius: 8px;
+  background: #effaf2;
+  color: #173326;
+}
+
+.winner-result-box strong {
+  color: var(--green-dark);
+  font-size: 1.05rem;
+}
+
 .home-scoreboard {
   display: grid;
   grid-template-columns: 1fr auto auto auto 1fr;
