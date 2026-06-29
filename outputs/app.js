@@ -1733,6 +1733,7 @@ function buildResultsHtml(data) {
             <span>Valor total do bolão: ${money(settlement.netPot || 0)}</span>
             <span>Dividido para ${settlement.winnersCount || 1} ganhador(es): ${prize} para cada.</span>
             <span>Valor que você vai receber: ${prize}</span>
+            <span>O sistema fará o pagamento em até 24h após o resultado final do jogo.</span>
             <span>Ganhador(es): ${(settlement.winners || []).map((winner) => escapeHtml(winner.name)).join(", ")}</span>
           </div>
         `
