@@ -351,6 +351,13 @@ h2 {
   font-weight: 900;
 }
 
+.home-final-result .home-winner-alert {
+  color: #d60000;
+  font-size: clamp(1.2rem, 3.6vw, 1.85rem);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .winner-result-box {
   display: grid;
   gap: 0.32rem;

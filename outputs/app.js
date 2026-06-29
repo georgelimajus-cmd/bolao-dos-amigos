@@ -581,8 +581,16 @@ function renderHomeGameStatus() {
 
 function renderHomeFinalResult(settlement) {
   if (!els.homeFinalResult) return;
-  els.homeFinalResult.classList.add("is-hidden");
-  els.homeFinalResult.innerHTML = "";
+  if (!settlement || settlement.matchId !== "j076" || settlement.winnersCount !== 2) {
+    els.homeFinalResult.classList.add("is-hidden");
+    els.homeFinalResult.innerHTML = "";
+    return;
+  }
+  els.homeFinalResult.classList.remove("is-hidden");
+  els.homeFinalResult.innerHTML = `
+    <strong class="home-winner-alert">DUAS PESSOAS ACERTARAM O PLACAR!</strong>
+    <span class="home-winner-alert">PARABÉNS!</span>
+  `;
 }
 
 function renderCadastroStep() {
