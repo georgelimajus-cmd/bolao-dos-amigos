@@ -483,9 +483,14 @@ function buildPublicSummary() {
   const paidBets = db.bets.filter((bet) => bet.status === "paga").length;
   const currentMatch = currentBrazilMatch(db);
   const currentSettlement = currentMatch ? buildSettlement(db, currentMatch) : null;
+  const pendingSettlement = latestPendingBrazilSettlement(db);
   const finalSettlement = latestFinalizedBrazilSettlement(db);
   return {
-    netTotal: currentSettlement ? currentSettlement.netPot : paidBets * betValue * (1 - appFeePercent / 100),
+    netTotal: currentSettlement
+      ? currentSettlement.netPot
+      : pendingSettlement
+      ? pendingSettlement.baseNetPot + pendingSettlement.carryover
+      : paidBets * betValue * (1 - appFeePercent / 100),
     currentMatchId: currentMatch?.id || null,
     currentMatchClosed: currentMatch ? isBettingClosed(db, currentMatch) : true,
     finalSettlement,
@@ -767,6 +772,16 @@ function latestFinalizedBrazilSettlement(db) {
     prizePerWinner: settlement.prizePerWinner,
     message: settlement.message
   };
+}
+
+function latestPendingBrazilSettlement(db) {
+  const pendingGame = games
+    .filter((game) => game.home === "Brasil" || game.away === "Brasil")
+    .filter((game) => db.results?.[game.id]?.status !== "finalizado")
+    .filter((game) => isBettingClosed(db, game))
+    .sort((a, b) => new Date(b.startsAt) - new Date(a.startsAt))[0];
+
+  return pendingGame ? buildSettlement(db, pendingGame) : null;
 }
 
 function maskWinnerName(name) {
