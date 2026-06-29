@@ -488,6 +488,8 @@ function buildPublicSummary() {
   return {
     netTotal: currentSettlement
       ? currentSettlement.netPot
+      : finalSettlement
+      ? finalSettlement.netPot
       : pendingSettlement
       ? pendingSettlement.baseNetPot + pendingSettlement.carryover
       : paidBets * betValue * (1 - appFeePercent / 100),
