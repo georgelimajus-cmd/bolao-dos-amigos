@@ -588,7 +588,7 @@ function renderHomeFinalResult(settlement) {
   }
   els.homeFinalResult.classList.remove("is-hidden");
   els.homeFinalResult.innerHTML = `
-    <strong class="home-winner-alert">DUAS PESSOAS ACERTARAM O PLACAR!</strong>
+    <strong class="home-winner-alert">ELIZABETE E JOANA ACERTARAM O PLACAR!</strong>
     <span class="home-winner-alert">PARABÉNS!</span>
   `;
 }
